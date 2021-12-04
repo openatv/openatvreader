@@ -1,0 +1,24 @@
+<!-- OPENA_TV_Changelog -->
+<screen name="OPENA_TV_Changelog" position="center,center" size="1100,535" flags="wfNoBorders" transparent="0" backgroundColor="#10222222">
+	<eLabel name="header" position="0,0" size="1100,100" zPosition="0" transparent="0" backgroundColor="#161616" />
+	<widget source="global.CurrentTime" render="Label" position="5,5" size="300,30" foregroundColor="#00ffffff" backgroundColor="#102e2e2e" font="Regular; 22" halign="left" transparent="1" zPosition="2">
+		<convert type="ClockToText">Format:%d.%m.%Y</convert>
+	</widget>
+	<widget name="menuname" position="5,5" size="1090,30" foregroundColor="#00ffffff" backgroundColor="#102e2e2e" halign="center" font="Regular; 22" zPosition="1" transparent="1" />
+	<widget name="text_header" position="5,70" size="1090,30" foregroundColor="#00ffffff" backgroundColor="#02e2e2e" valign="center" halign="center" font="Regular;18" zPosition="2" transparent="1" />
+	<widget source="global.CurrentTime" render="Label" position="937,5" size="108,31" foregroundColor="#00ffffff" backgroundColor="#102e2e2e" font="Regular; 22" halign="right" transparent="1" zPosition="2">
+		<convert type="ClockToText">Default</convert>
+	</widget>
+	<widget source="global.CurrentTime" render="Label" position="1045,5" size="62,31" foregroundColor="#00ffffff" backgroundColor="#102e2e2e" font="Regular; 22" valign="top" halign="left" transparent="1" zPosition="2">
+		<convert type="ClockToText">Format::%S</convert>
+	</widget>
+	<widget name="liste" position="10,100" size="580,388" itemHeight="30" foregroundColor="#00b1b1b1" backgroundColor="#101A1A1A" scrollbarMode="showOnDemand" />
+	<ePixmap name="logo" position="640,434" size="450,75" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/openATVreader/pics/logo.png" transparent="1" alphatest="blend" zPosition="2" />
+	<eLabel name="button_red" position="18,496" size="5,30" zPosition="2" transparent="0" backgroundColor="#00f23d21" />
+	<widget name="text_ico_red" position="26,496" size="155,30" foregroundColor="#00ffffff" backgroundColor="#102e2e2e" transparent="1" zPosition="2" valign="center" font="Regular;15" />
+	<widget name="text" position="598,101" size="491,323" font="Regular;18" />
+</screen>
+
+<!-- Plugin Screens used this .xml -->
+<!-- OPENA_TV_Changelog -->
+<!-- OPENA_TV_Buglist -->

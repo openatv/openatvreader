@@ -1,0 +1,31 @@
+<!-- OPENA_TV_About -->
+<screen name="OPENA_TV_About" position="center,center" size="1420,650" flags="wfNoBorders" transparent="0" backgroundColor="#10222222">
+	<eLabel name="header" position="0,0" size="1420,110" zPosition="0" transparent="0" backgroundColor="#00161616" />
+	<widget source="global.CurrentTime" render="Label" position="10,10" size="154,90" foregroundColor="#00ffffff" backgroundColor="#102e2e2e" font="Regular; 22" halign="left" transparent="1" zPosition="2" valign="top">
+		<convert type="ClockToText">Format:%d.%m.%Y</convert>
+	</widget>
+	<widget name="menuname" position="10,10" size="1400,90" foregroundColor="#00ffffff" backgroundColor="#102e2e2e" halign="center" valign="top" font="Regular; 22" zPosition="1" transparent="1" />
+	<widget name="text_header" position="10,55" size="1400,45" foregroundColor="#00ffffff" backgroundColor="#102e2e2e" halign="center" valign="center" font="Regular; 18" zPosition="1" transparent="1" />
+	<widget source="global.CurrentTime" render="Label" position="1232,10" size="108,90" foregroundColor="#00ffffff" backgroundColor="#102e2e2e" font="Regular; 22" halign="right" transparent="1" zPosition="2" valign="top">
+		<convert type="ClockToText">Default</convert>
+	</widget>
+	<widget source="global.CurrentTime" render="Label" position="1340,10" size="60,90" foregroundColor="#00ffffff" backgroundColor="#102e2e2e" font="Regular; 22" valign="top" halign="left" transparent="1" zPosition="2">
+		<convert type="ClockToText">Format::%S</convert>
+	</widget>
+	<widget name="text1" position="10,130" size="1400,30" foregroundColor="#00ffffff" backgroundColor="#102e2e2e" transparent="1" zPosition="2" halign="center" font="Regular;18" />
+	<widget name="text2" position="10,160" size="1400,30" foregroundColor="#00ffffff" backgroundColor="#102e2e2e" transparent="1" zPosition="2" halign="center" font="Regular;18" />
+	<widget name="text3" position="10,190" size="1400,30" foregroundColor="#00ffffff" backgroundColor="#102e2e2e" transparent="1" zPosition="2" halign="center" font="Regular;18" />
+	<widget name="pp" position="10,240" size="1400,30" foregroundColor="#00ffffff" backgroundColor="#102e2e2e" transparent="1" zPosition="2" halign="center" font="Regular;18" />
+	<widget name="pp1" position="10,270" size="1400,30" foregroundColor="#00ffffff" backgroundColor="#102e2e2e" transparent="1" zPosition="2" halign="center" font="Regular;18" />
+	<widget name="pp2" position="10,300" size="1400,30" foregroundColor="#00ffffff" backgroundColor="#102e2e2e" transparent="1" zPosition="2" halign="center" font="Regular;18" />
+	<widget name="pp3" position="10,330" size="1400,30" foregroundColor="#00ffffff" backgroundColor="#102e2e2e" transparent="1" zPosition="2" halign="center" font="Regular;18" />
+	<widget name="pp4" position="10,360" size="1400,30" foregroundColor="#00ffffff" backgroundColor="#102e2e2e" transparent="1" zPosition="2" halign="center" font="Regular;18" />
+	<widget name="pp5" position="10,390" size="1400,30" foregroundColor="#00ffffff" backgroundColor="#102e2e2e" transparent="1" zPosition="2" halign="center" font="Regular;18" />
+	<widget name="pp6" position="10,420" size="1400,30" foregroundColor="#00ffffff" backgroundColor="#102e2e2e" transparent="1" zPosition="2" halign="center" font="Regular;18" />
+	<widget name="pp7" position="10,450" size="1400,30" foregroundColor="#00ffffff" backgroundColor="#102e2e2e" transparent="1" zPosition="2" halign="center" font="Regular;18" />
+	<ePixmap name="ico_paypal" position="535,480" size="350,91" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/openATVreader/pics/paypal.png" alphatest="blend" zPosition="2" />
+	<widget name="text_info" position="10,580" size="1400,30" foregroundColor="#00ffffff" backgroundColor="#102e2e2e" transparent="1" zPosition="2" halign="center" font="Regular;18" />
+</screen>
+
+<!-- Plugin Screens used this .xml -->
+<!-- OPENA_TV_About -->

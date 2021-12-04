@@ -1,0 +1,7 @@
+Package: enigma2-plugin-extensions-openatv-community-reader
+Version: 0.7
+Section: extra
+Architecture: all
+Maintainer: lolly
+Source:
+Description: openATV Community Reader v0.7

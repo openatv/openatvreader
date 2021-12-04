@@ -1,0 +1,29 @@
+<!-- OPENA_TV_Thread -->
+<screen name="OPENA_TV_Thread" position="center,center" size="1600,900" flags="wfNoBorders" transparent="0" backgroundColor="#10222222">
+	<eLabel name="header" position="0,0" size="1600,110" zPosition="0" transparent="0" backgroundColor="#00161616" />
+	<widget source="global.CurrentTime" render="Label" position="10,10" size="154,90" foregroundColor="#00ffffff" backgroundColor="#102e2e2e" font="Regular; 24" halign="left" transparent="1" zPosition="2" valign="top">
+		<convert type="ClockToText">Format:%d.%m.%Y</convert>
+	</widget>
+	<widget name="menuname" position="10,10" size="1580,90" foregroundColor="#00ffffff" backgroundColor="#102e2e2e" halign="center" valign="top" font="Regular; 24" zPosition="1" transparent="1" />
+	<widget name="text_header" position="10,55" size="1580,45" foregroundColor="#00ffffff" backgroundColor="#102e2e2e" halign="center" valign="center" font="Regular; 24" zPosition="1" transparent="1" />
+	<widget source="global.CurrentTime" render="Label" position="1432,10" size="108,90" foregroundColor="#00ffffff" backgroundColor="#102e2e2e" font="Regular; 24" halign="right" transparent="1" zPosition="2" valign="top">
+		<convert type="ClockToText">Default</convert>
+	</widget>
+	<widget source="global.CurrentTime" render="Label" position="1540,10" size="60,90" foregroundColor="#00ffffff" backgroundColor="#102e2e2e" font="Regular; 24" valign="top" halign="left" transparent="1" zPosition="2">
+		<convert type="ClockToText">Format::%S</convert>
+	</widget>
+	<widget name="page" position="1390,60" size="200,30" font="Regular; 22" transparent="1" halign="right" zPosition="2" />
+	<widget name="liste" position="5,110" size="550,648" itemHeight="30" font="Regular; 18" foregroundColor="#00b1b1b1" backgroundColor="#101A1A1A" />
+	<widget name="text" position="560,110" size="1027,775" font="Regular; 26" foregroundColor="#00b1b1b1" backgroundColor="#101A1A1A" />
+	<eLabel name="button_red" position="10,770" size="5,30" zPosition="2" transparent="0" backgroundColor="#00f23d21" />
+	<widget name="text_ico_red" position="20,770" size="295,30" foregroundColor="#00ffffff" backgroundColor="#102e2e2e" transparent="1" zPosition="2" valign="center" font="Regular;24" />
+	<eLabel name="button_green" position="10,800" size="5,30" zPosition="2" transparent="0" backgroundColor="#00389416" />
+	<widget name="text_ico_green" position="20,800" size="295,30" foregroundColor="#00ffffff" backgroundColor="#102e2e2e" transparent="1" zPosition="2" valign="center" font="Regular;24" />
+	<eLabel name="button_yellow" position="10,830" size="5,30" zPosition="2" transparent="0" backgroundColor="#00bab329" />
+	<widget name="text_ico_yellow" position="20,830" size="295,30" foregroundColor="#00ffffff" backgroundColor="#102e2e2e" transparent="1" zPosition="2" valign="center" font="Regular;24" />
+	<eLabel name="button_blue" position="10,860" size="5,30" zPosition="2" transparent="0" backgroundColor="#000064c7" />
+	<widget name="text_ico_blue" position="20,860" size="295,30" foregroundColor="#00ffffff" backgroundColor="#102e2e2e" transparent="1" zPosition="2" valign="center" font="Regular;24" />
+</screen>
+
+<!-- Plugin Screens used this .xml -->
+<!-- OPENA_TV_Thread -->
