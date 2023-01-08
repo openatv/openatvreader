@@ -249,7 +249,9 @@ class openATVThread(openATVglobals):
 	def makeThreadView(self, string):
 		output = open(self.localhtml2, 'rb').read()
 		output = ensure_str(output.decode('latin1').encode('utf-8'))
-		self.count, self.maxcount = self.searchTwoValues(r'class="popupctrl">Seite (\d+) von (\d+)</a></span>', output, None, 1)
+		counters = self.searchTwoValues(r'class="popupctrl">Seite (\d+) von (\d+)</a></span>', output, 1, 1)
+		self.count = int(counters[0])
+		self.maxcount = int(counters[1])
 		title = unescape(self.searchOneValue(r'<title>(.*?)</title>', output, "{kein Titel}"))
 		title = "%s - Seite 1 von %s" % (title, self.maxcount) if title.find("Seite") == -1 else "%s von %s" % (title, self.maxcount)
 		self.threadtitle = title
