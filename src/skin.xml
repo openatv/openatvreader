@@ -1,0 +1,55 @@
+<skin>
+
+	<screen name="openATVMain" position="center,center" size="1850,1390" backgroundColor="#00151513" title="openATV Forum">
+		<ePixmap position="20,10" size="450,75" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/openATV/pic/openATV.png" alphatest="blend" zPosition="1" />\
+		<widget name="headline" position="480,40" size="1330,45" font="Regular;36" halign="left" valign="center" transparent="1" zPosition="3" />
+		<widget name="menu" position="20,100" size="1800,945" scrollbarMode="showOnDemand" zPosition="1" />
+	</screen>
+
+	<screen name="openATVThread" position="center,center" size="1850,1390" backgroundColor="#00151513" title=" ">
+		<ePixmap position="20,10" size="450,75" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/openATV/pic/openATV.png" alphatest="blend" zPosition="1" />\
+		<widget name="line1" position="20,100" size="1800,7" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/openATV/pic/line.png" zPosition="1" />
+		<widget name="headline" position="480,40" size="1300,45" font="Regular;36" halign="left" valign="center" transparent="1" zPosition="3" />
+		<widget name="postid" position="1650,10" size="150,30" font="Regular;24" halign="right" valign="center" transparent="1" zPosition="3" />
+		<widget name="postnr" position="1650,40" size="150,40" font="Regular;36" halign="right" valign="center" transparent="1" zPosition="3" />
+		<widget name="avatar" position="40,120" size="108,108" alphatest="blend" transparent="1" zPosition="1" />
+		<widget name="user" position="170,115" size="400,42" font="Regular;36" halign="center" valign="center" transparent="1" zPosition="3" />
+		<widget name="status" position="170,200" size="400,36" font="Regular;32" halign="center" valign="center" transparent="1" zPosition="3" />
+		<widget name="ranks" position="260,160" size="225,40" alphatest="blend" transparent="1" zPosition="1" />
+		<widget name="postcnt" position="640,120" size="300,36" font="Regular;32" halign="left" valign="center" transparent="1" zPosition="3" />
+		<widget name="thxgiven" position="640,160" size="400,36" font="Regular;32" halign="left" valign="center" transparent="1" zPosition="3" />
+		<widget name="thxreceived" position="640,200" size="400,36" font="Regular;32" halign="left" valign="center" transparent="1" zPosition="3" />
+		<widget name="registered" position="1400,120" size="400,36" font="Regular;32" halign="right" valign="center" transparent="1" zPosition="3" />
+		<widget name="datum" position="1000,195" size="800,40" font="Regular;32" halign="right" valign="center" transparent="1" zPosition="3" />
+		<widget name="line2" position="20,250" size="1800,7" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/openATV/pic/line.png" zPosition="1" />
+		<widget name="textpage" position="40,270" size="1760,810" foregroundColor="#FFFFFF" font="Regular;36" halign="left" scrollbarMode="showOnDemand" zPosition="1" />\
+		<widget name="menu" position="20,100" size="1800,945" scrollbarMode="showOnDemand" zPosition="1" />
+	</screen>
+
+	<!-- Favoriten muß noch gemacht werden -->
+	<screen name="openATVFav" position="center,center" size="1850,1390" backgroundColor="#00151513" title=" ">\
+		<ePixmap position="20,20" size="450,75" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/openATV/pic/openATV.png" alphatest="blend" zPosition="1" />\
+		<widget name="label" position="770,285" size="562,49" font="Regular;40" foregroundColor="#00208087" backgroundColor="#00151513" halign="left" transparent="1" zPosition="2" />\
+		<eLabel name="button_red" position="720,290" size="12,40" backgroundColor="red" zPosition="2" />
+		<widget name="favmenu" position="20,355" size="1800,1010" backgroundColor="#00151513" scrollbarMode="showOnDemand" zPosition="1" />\
+	</screen>
+
+	<screen name="getNumber" position="center,center" size="420,125" backgroundColor="#000000" flags="wfNoBorder" title=" ">
+		<widget name="number" position="0,0" size="420,125" font="Regular;67" halign="center" valign="center" transparent="1" zPosition="1" />
+	</screen>
+
+	<screen name="helpScreen" position="center,center" size="380,340" flags="wfNoBorder" backgroundColor="#151513" title=" ">\
+		<eLabel name="button_red" position="20,0" size="12,40" backgroundColor="red" zPosition="2" />
+		<eLabel name="button_green" position="20,50" size="12,40" backgroundColor="green" zPosition="2" />
+		<eLabel name="button_yellow" position="20,100" size="12,40" backgroundColor="yellow" zPosition="2" />
+		<eLabel name="button_blue" position="20,150" size="12,40" backgroundColor="blue" zPosition="2" />
+		<widget name="label_red" position="50,0" size="350,42" font="Regular;36" transparent="1" zPosition="3" />\
+		<widget name="label_green" position="50,50" size="350,42" font="Regular;36" transparent="1" zPosition="3" />\
+		<widget name="label_yellow" position="50,100" size="350,42" font="Regular;36" transparent="1" zPosition="3" />\
+		<widget name="label_blue" position="50,150" size="350,42" font="Regular;36" transparent="1" zPosition="3" />\
+		<ePixmap position="20,225" size="340,7" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/openATV/pic/line.png" alphatest="blend" zPosition="3" />\
+		<widget name="label1" position="20,240" size="400,42" font="Regular;36" transparent="1" zPosition="3" />\
+		<widget name="label2" position="20,290" size="400,42" font="Regular;36" transparent="1" zPosition="3" />\
+	</screen>
+
+</skin>
