@@ -34,23 +34,30 @@ class openATVglobals(Screen):
 
 	def cleanupDescTags(self, text, remove=True):
 		if text:
-			text = text.replace("<u>", "").replace("</u>", '').replace("<b>", "").replace("</b>", "").replace("<i>", "").replace("</i>", "")
-			bereich = search(r'<ul><li style=(.*?)</ul><br />', text)  # suche Auflistung
+			text = text.replace("<u>", "").replace("</u>", '').replace("<i>", "").replace("</i>", "")
+			bereich = search(r'<ul>(.*?)</ul>', text)  # suche Auflistung
 			bereich = bereich.group(0) if bereich else "{ERROR}"
-			items = findall(r'<li style="">(.*?)</li>', bereich, flags=S)  # erzeuge neue Auflistung
+			items = findall(r'<li style="">(.*?)</li>', bereich, flags=S)  # suche Einzelpositionen
 			listing = ""
 			for item in items:
 				listing += "• %s\n" % item
-			text = sub(r'<ul><li style=.*?</ul><br\s*/>', listing, text)  # Auflistung austauschen
+			text = sub(r'<ul>.*?</ul>', listing, text)  # Auflistung austauschen
+			bereich = search(r'<ol\s*class="decimal">(.*?)</ol>', text)  # suche dezimale Auflistung
+			bereich = bereich.group(0) if bereich else "{ERROR}"
+			items = findall(r'<li style="">(.*?)</li>', bereich, flags=S)  # suche Einzelpositionen
+			listing = ""
+			for idx, item in enumerate(items):
+				listing += "%s. %s\n" % (idx + 1, item)
+			text = sub(r'<ol class="decimal">(.*?)</ol>', listing, text)  # dezimale Auflistung austauschen
+			text = sub(r'<a.*?href="(.*?)"\s*target="_blank">(.*?)</a>', '%s {%s}' % ('\g<2>', '\g<1>'), text)  # Links entfernen
 			text = self.cleanupUserTags(text)
 			text = sub(r'<a\s*rel="nofollow"\s*href=".*?</a>', '' if remove else '{Anhang}', text)  # Anhänge entfernen
-			text = sub(r'<img\s*src=".*?class="inlineimg"\s*/>', '' if remove else '{Emoicon}', text)  # EmoIcons entfernen
 			text = sub(r'<a\s*href=".*?"\s*id="attachment.*?/></a>', '' if remove else '{Bild}', text)  # Bilder entfernen
+			text = sub(r'<img\s*src=".*?class="inlineimg"\s*/>', '' if remove else '{Emoicon}', text)  # EmoIcons entfernen
 			text = sub(r'<font\s*size=".*?">(.*?)</font>', '\g<1>', text, flags=S)  # Schriftgröße entfernen
-			text = sub(r'<a\s*href=".*?"\s*target="_blank">(.*?)</a>', '\g<1>', text)  # Links entfernen
 			text = sub(r'<div\s*class="bbcode_postedby">.*?</div>', '', text, flags=S)  # Zitate entfernen... (die Reihenfolge ist hier wichtig)
 			text = sub(r'<div\s*class="bbcode_quote_container">.*?</div>', '', text, flags=S)
-			text = sub(r'<div\s*class="message">.*?</div>', '', text, flags=S)
+			text = sub(r'<div\s*class="message">(.*?)</div>', 'Zitat: %s' % '\g<1>', text, flags=S)
 			text = sub(r'<div\s*class="quote_container">.*?</div>', '', text, flags=S)
 			text = sub(r'<div\s*class="bbcode_quote">.*?</div>', '', text, flags=S)
 			text = sub(r'<div\s*class="bbcode_container">.*?</div>', '' if remove else '{Zitat}\n', text, flags=S)  # ...Zitate entfernen
