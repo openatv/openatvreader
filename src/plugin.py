@@ -42,6 +42,7 @@ class openATVglobals(Screen):
 			for item in items:
 				listing += "• %s\n" % item
 			text = sub(r'<ul><li style=.*?</ul><br\s*/>', listing, text)  # Auflistung austauschen
+			text = self.cleanupUserTags(text)
 			text = sub(r'<a\s*rel="nofollow"\s*href=".*?</a>', '' if remove else '{Anhang}', text)  # Anhänge entfernen
 			text = sub(r'<img\s*src=".*?class="inlineimg"\s*/>', '' if remove else '{Emoicon}', text)  # EmoIcons entfernen
 			text = sub(r'<a\s*href=".*?"\s*id="attachment.*?/></a>', '' if remove else '{Bild}', text)  # Bilder entfernen
@@ -301,14 +302,14 @@ class openATVThread(openATVglobals):
 				self.threadentries.append(res)
 				self.threadlink.append(links[i])
 				self.titellist.append(title)
-			self.userlist = ", ".join([*set(users)])
-			self.userlist = "%s…" % self.userlist[:200] if len(self.userlist) > 200 else self.userlist
+			userlist = ", ".join([*set(users)])
+			userlist = "%s…" % userlist[:200] if len(userlist) > 200 else userlist
 			res = ['']
 			res.append(MultiContentEntryText(pos=(0, 0), size=(1800, 135), font=-1, backcolor=1381651, backcolor_sel=1381651, flags=RT_HALIGN_LEFT, text=''))
 			res.append(MultiContentEntryPixmapAlphaTest(pos=(0, 0), size=(1800, 7), png=loadPNG(join(PLUGINPATH, "pic/line.png"))))
 			res.append(MultiContentEntryPixmapAlphaTest(pos=(5, 10), size=(108, 108), backcolor=1381651, backcolor_sel=1381651, png=LoadPixmap(join(PLUGINPATH, "pic/user_stat.png")), flags=BT_SCALE | BT_KEEP_ASPECT_RATIO))
 			res.append(MultiContentEntryText(pos=(135, 12), size=(1290, 40), font=-1, backcolor=1381651, color=16777215, backcolor_sel=1381651, color_sel=2130055, flags=RT_HALIGN_LEFT, text='beteiligte Benutzer'))
-			res.append(MultiContentEntryText(pos=(135, 57), size=(1620, 86), font=0, backcolor=1381651, color=16777215, backcolor_sel=1381651, color_sel=2130055, flags=RT_HALIGN_LEFT | RT_WRAP, text=self.userlist))
+			res.append(MultiContentEntryText(pos=(135, 57), size=(1620, 86), font=0, backcolor=1381651, color=16777215, backcolor_sel=1381651, color_sel=2130055, flags=RT_HALIGN_LEFT | RT_WRAP, text=userlist))
 			res.append(MultiContentEntryPixmapAlphaTest(pos=(89, 0), size=(1800, 7), png=loadPNG(join(PLUGINPATH, "pic/line.png"))))
 			index = links.index(self.link) if self.link in links else 0
 			self.threadentries.append(res)
@@ -379,7 +380,6 @@ class openATVThread(openATVglobals):
 					desc = self.cleanupDescTags(desc, remove=False)
 					last = search(r'<blockquote class="postcontent lastedited">(.*?)\s*(Heute um <span class="time">(.*?)</span> Uhr)', post, flags=S)
 					desc += "\n\n%s\n%sHeute um %s Uhr)" % ("_" * 45, last.group(1).strip(), last.group(3)) if last else ""
-					desc += "\n\n%s\nam Thema beteilige Benutzer der aktuellen Themenseite: %s\n" % ("_" * 96, self.userlist)
 					break
 		self['line1'].show()
 		self['line2'].show()
