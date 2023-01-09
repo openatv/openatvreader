@@ -56,6 +56,7 @@ class openATVglobals(Screen):
 			text = sub(r'<a\s*href=".*?"\s*id="attachment.*?/></a>', '' if remove else '{Bild}', text)  # Bilder entfernen
 			text = sub(r'<img src=".*?\s*/>', '' if remove else '{Bild}', text)  # Bilder entfernen
 			text = sub(r'<font\s*size=".*?">(.*?)</font>', '\g<1>', text, flags=S)  # Schriftgröße entfernen
+			text = sub(r'<div class="bbcode_container">\s*<div class="bbcode_description">Code:</div>.*?</div>', '{Code}\n\n', text, flags=S)  # Codes entfernen
 			text = sub(r'<blockquote\s*class="postcontent\s*restore\s*">\s*(.*?)\s*</blockquote>', '' if remove else '-----{Zitat Anfang}%s\n{%s}\n%s{Zitat Ende}-----' % ('-' * 90, '\g<1>', '-' * 92), text, flags=S)  # Zitate isolieren
 			text = sub(r'<div\s*class="bbcode_postedby">.*?</div>', '', text, flags=S)  # Zitate entfernen... (die Reihenfolge ist hier wichtig)
 			text = sub(r'<div\s*class="bbcode_quote_container">.*?</div>', '', text, flags=S)
