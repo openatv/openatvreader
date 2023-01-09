@@ -51,9 +51,10 @@ class openATVglobals(Screen):
 			text = sub(r'<ol class="decimal">(.*?)</ol>', listing, text)  # dezimale Auflistung austauschen
 			text = sub(r'<a.*?href="(.*?)"\s*target="_blank">(.*?)</a>', '%s {%s}' % ('\g<2>', '\g<1>'), text)  # Links entfernen
 			text = self.cleanupUserTags(text)
-			text = sub(r'<a\s*rel="nofollow"\s*href=".*?</a>', '' if remove else '{Anhang}', text)  # Anhänge entfernen
-			text = sub(r'<a\s*href=".*?"\s*id="attachment.*?/></a>', '' if remove else '{Bild}', text)  # Bilder entfernen
+			text = sub(r'<a\s*rel="nofollow"\s*href=".*?"</a>', '' if remove else '{Anhang}', text)  # Anhänge entfernen
 			text = sub(r'<img\s*src=".*?class="inlineimg"\s*/>', '' if remove else '{Emoicon}', text)  # EmoIcons entfernen
+			text = sub(r'<a\s*href=".*?"\s*id="attachment.*?/></a>', '' if remove else '{Bild}', text)  # Bilder entfernen
+			text = sub(r'<img src=".*?\s*/>', '' if remove else '{Bild}', text)  # Bilder entfernen
 			text = sub(r'<font\s*size=".*?">(.*?)</font>', '\g<1>', text, flags=S)  # Schriftgröße entfernen
 			text = sub(r'<blockquote\s*class="postcontent\s*restore\s*">\s*(.*?)\s*</blockquote>', '' if remove else '-----{Zitat Anfang}%s\n{%s}\n%s{Zitat Ende}-----' % ('-' * 90, '\g<1>', '-' * 92), text, flags=S)  # Zitate isolieren
 			text = sub(r'<div\s*class="bbcode_postedby">.*?</div>', '', text, flags=S)  # Zitate entfernen... (die Reihenfolge ist hier wichtig)
@@ -290,47 +291,42 @@ class openATVThread(openATVglobals):
 			desc = "%s%s…" % (desc[:300], desc[300:desc.find(" ", 300)]) if len(desc) > 300 else desc
 			descs.append(desc)
 			links.append(self.searchOneValue(r'<a name=".*?" href="(.*?)" class="postcounter">', post, None))
-		self.users = users
-		if len(users) > 1:
-			self['headline'].setText("lade fehlende Avatare...")
-			self.downloadMissingAvatars(logos)
-			self['headline'].setText(title)
-			for i, user in enumerate(users):
-				res = ['']
-				res.append(MultiContentEntryText(pos=(0, 0), size=(1800, 135), font=-1, backcolor=1381651, backcolor_sel=1381651, flags=RT_HALIGN_LEFT, text=''))
-				res.append(MultiContentEntryPixmapAlphaTest(pos=(0, 0), size=(1800, 7), png=loadPNG(join(PLUGINPATH, "pic/line.png"))))
-				realname = glob(join(AVATARPATH, "%s%s" % (logos[i][logos[i].rfind("/") + 1:logos[i].rfind(".")], ".*")))
-				if realname:
-					res.append(MultiContentEntryPixmapAlphaTest(pos=(7, 15), size=(108, 108), backcolor=1381651, backcolor_sel=1381651, png=LoadPixmap(realname[0]), flags=BT_SCALE | BT_KEEP_ASPECT_RATIO))
-				res.append(MultiContentEntryText(pos=(135, 12), size=(1655, 58), font=-1, backcolor=1381651, color=16777215, backcolor_sel=1381651, color_sel=2130055, flags=RT_HALIGN_LEFT, text=title))
-				res.append(MultiContentEntryText(pos=(135, 15), size=(1290, 105), font=0, backcolor=1381651, color=16777215, backcolor_sel=1381651, color_sel=2130055, flags=RT_HALIGN_LEFT | RT_WRAP, text=descs[i]))
-				res.append(MultiContentEntryText(pos=(1440, 7), size=(315, 40), font=1, backcolor=1381651, color=16777215, backcolor_sel=1381651, color_sel=2130055, flags=RT_HALIGN_RIGHT, text=dates[i]))
-				res.append(MultiContentEntryText(pos=(1440, 45), size=(315, 40), font=-1, backcolor=1381651, color=16777215, backcolor_sel=1381651, color_sel=2130055, flags=RT_HALIGN_RIGHT, text=user))
-				res.append(MultiContentEntryText(pos=(1440, 90), size=(315, 40), font=1, backcolor=1381651, color=16777215, backcolor_sel=1381651, color_sel=2130055, flags=RT_HALIGN_RIGHT, text="%s Beiträge" % pcnts[i]))
-				self.threadentries.append(res)
-				self.threadlink.append(links[i])
-				self.titellist.append(title)
-			userlist = ", ".join([*set(users)])
-			userlist = "%s…" % userlist[:200] if len(userlist) > 200 else userlist
+		self['headline'].setText("lade fehlende Avatare...")
+		self.downloadMissingAvatars(logos)
+		self['headline'].setText(title)
+		for i, user in enumerate(users):
 			res = ['']
 			res.append(MultiContentEntryText(pos=(0, 0), size=(1800, 135), font=-1, backcolor=1381651, backcolor_sel=1381651, flags=RT_HALIGN_LEFT, text=''))
 			res.append(MultiContentEntryPixmapAlphaTest(pos=(0, 0), size=(1800, 7), png=loadPNG(join(PLUGINPATH, "pic/line.png"))))
-			res.append(MultiContentEntryPixmapAlphaTest(pos=(5, 10), size=(108, 108), backcolor=1381651, backcolor_sel=1381651, png=LoadPixmap(join(PLUGINPATH, "pic/user_stat.png")), flags=BT_SCALE | BT_KEEP_ASPECT_RATIO))
-			res.append(MultiContentEntryText(pos=(135, 12), size=(1290, 40), font=-1, backcolor=1381651, color=16777215, backcolor_sel=1381651, color_sel=2130055, flags=RT_HALIGN_LEFT, text='beteiligte Benutzer'))
-			res.append(MultiContentEntryText(pos=(135, 57), size=(1620, 86), font=0, backcolor=1381651, color=16777215, backcolor_sel=1381651, color_sel=2130055, flags=RT_HALIGN_LEFT | RT_WRAP, text=userlist))
-			res.append(MultiContentEntryPixmapAlphaTest(pos=(89, 0), size=(1800, 7), png=loadPNG(join(PLUGINPATH, "pic/line.png"))))
-			index = links.index(self.link) if self.link in links else 0
+			realname = glob(join(AVATARPATH, "%s%s" % (logos[i][logos[i].rfind("/") + 1:logos[i].rfind(".")], ".*")))
+			if realname:
+				res.append(MultiContentEntryPixmapAlphaTest(pos=(7, 15), size=(108, 108), backcolor=1381651, backcolor_sel=1381651, png=LoadPixmap(realname[0]), flags=BT_SCALE | BT_KEEP_ASPECT_RATIO))
+			res.append(MultiContentEntryText(pos=(135, 12), size=(1655, 58), font=-1, backcolor=1381651, color=16777215, backcolor_sel=1381651, color_sel=2130055, flags=RT_HALIGN_LEFT, text=title))
+			res.append(MultiContentEntryText(pos=(135, 15), size=(1290, 105), font=0, backcolor=1381651, color=16777215, backcolor_sel=1381651, color_sel=2130055, flags=RT_HALIGN_LEFT | RT_WRAP, text=descs[i]))
+			res.append(MultiContentEntryText(pos=(1440, 7), size=(315, 40), font=1, backcolor=1381651, color=16777215, backcolor_sel=1381651, color_sel=2130055, flags=RT_HALIGN_RIGHT, text=dates[i]))
+			res.append(MultiContentEntryText(pos=(1440, 45), size=(315, 40), font=-1, backcolor=1381651, color=16777215, backcolor_sel=1381651, color_sel=2130055, flags=RT_HALIGN_RIGHT, text=user))
+			res.append(MultiContentEntryText(pos=(1440, 90), size=(315, 40), font=1, backcolor=1381651, color=16777215, backcolor_sel=1381651, color_sel=2130055, flags=RT_HALIGN_RIGHT, text="%s Beiträge" % pcnts[i]))
 			self.threadentries.append(res)
-			self.threadlink.append(None)
-			self.titellist.append('beteiligte Benutzer')
-			self['menu'].l.setList(self.threadentries)
-			self['menu'].l.setItemHeight(135)
-			self['menu'].moveToIndex(index)
-			self['menu'].show()
-			self.ready = True
-		else:
-			self.postlink = links[0]
-			callInThread(self.threadGetPage, links[0], self.makePostviewPage)
+			self.threadlink.append(links[i])
+			self.titellist.append(title)
+			userlist = ", ".join([*set(users)])
+			userlist = "%s…" % userlist[:200] if len(userlist) > 200 else userlist
+		res = ['']
+		res.append(MultiContentEntryText(pos=(0, 0), size=(1800, 135), font=-1, backcolor=1381651, backcolor_sel=1381651, flags=RT_HALIGN_LEFT, text=''))
+		res.append(MultiContentEntryPixmapAlphaTest(pos=(0, 0), size=(1800, 7), png=loadPNG(join(PLUGINPATH, "pic/line.png"))))
+		res.append(MultiContentEntryPixmapAlphaTest(pos=(5, 10), size=(108, 108), backcolor=1381651, backcolor_sel=1381651, png=LoadPixmap(join(PLUGINPATH, "pic/user_stat.png")), flags=BT_SCALE | BT_KEEP_ASPECT_RATIO))
+		res.append(MultiContentEntryText(pos=(135, 12), size=(1290, 40), font=-1, backcolor=1381651, color=16777215, backcolor_sel=1381651, color_sel=2130055, flags=RT_HALIGN_LEFT, text='beteiligte Benutzer'))
+		res.append(MultiContentEntryText(pos=(135, 57), size=(1620, 86), font=0, backcolor=1381651, color=16777215, backcolor_sel=1381651, color_sel=2130055, flags=RT_HALIGN_LEFT | RT_WRAP, text=userlist))
+		res.append(MultiContentEntryPixmapAlphaTest(pos=(89, 0), size=(1800, 7), png=loadPNG(join(PLUGINPATH, "pic/line.png"))))
+		index = links.index(self.link) if self.link in links else 0
+		self.threadentries.append(res)
+		self.threadlink.append(None)
+		self.titellist.append('beteiligte Benutzer')
+		self['menu'].l.setList(self.threadentries)
+		self['menu'].l.setItemHeight(135)
+		self['menu'].moveToIndex(index)
+		self['menu'].show()
+		self.ready = True
 
 	def makePostviewPage(self, output):
 		self.current = 'postview'
@@ -512,7 +508,7 @@ class openATVThread(openATVglobals):
 				else:
 					self.session.open(MessageBox, '\nNur %s Seite verfügbar. Gehe zu Seite %s.' % (number, number), MessageBox.TYPE_INFO, close_on_any_key=True)
 			self.postcount = int(number)
-			link = sub('-post\d+.*?#post\d+', '-%s.html' % self.postcount, self.postlink)
+			link = sub(r'-post\d+.*?#post\d+', '-%s.html' % self.postcount, self.postlink)
 			callInThread(self.threadGetPage, link, self.makePostviewPage)
 
 	def showHelp(self):
@@ -561,7 +557,7 @@ class openATVThread(openATVglobals):
 			self.toogleHelp.hide()
 		elif self.current == 'returnmenu':
 			self.current = "menu"
-		elif self.fav is True or self.current == 'menu' or len(self.users) < 2:
+		elif self.fav is True or self.current == 'menu':
 			self.session.deleteDialog(self.toogleHelp)
 			self.close()
 		elif self.current == 'postview':
