@@ -55,13 +55,18 @@ class openATVglobals(Screen):
 			text = sub(r'<a\s*href=".*?"\s*id="attachment.*?/></a>', '' if remove else '{Bild}', text)  # Bilder entfernen
 			text = sub(r'<img\s*src=".*?class="inlineimg"\s*/>', '' if remove else '{Emoicon}', text)  # EmoIcons entfernen
 			text = sub(r'<font\s*size=".*?">(.*?)</font>', '\g<1>', text, flags=S)  # Schriftgröße entfernen
+			text = sub(r'<blockquote\s*class="postcontent\s*restore\s*">\s*(.*?)\s*</blockquote>', '' if remove else '-----{Zitat Anfang}%s\n{%s}\n%s{Zitat Ende}-----' % ('-' * 90, '\g<1>', '-' * 92), text, flags=S)  # Zitate isolieren
 			text = sub(r'<div\s*class="bbcode_postedby">.*?</div>', '', text, flags=S)  # Zitate entfernen... (die Reihenfolge ist hier wichtig)
 			text = sub(r'<div\s*class="bbcode_quote_container">.*?</div>', '', text, flags=S)
-			text = sub(r'<div\s*class="message">(.*?)</div>', 'Zitat: %s' % '\g<1>', text, flags=S)
-			text = sub(r'<div\s*class="quote_container">.*?</div>', '', text, flags=S)
-			text = sub(r'<div\s*class="bbcode_quote">.*?</div>', '', text, flags=S)
-			text = sub(r'<div\s*class="bbcode_container">.*?</div>', '' if remove else '{Zitat}\n', text, flags=S)  # ...Zitate entfernen
+			text = sub(r'<div\s*class="message">(.*?)</div>', '' if remove else '\n-----{Zitat Anfang}%s\n{%s}\n%s{Zitat Ende}-----\n' % ('-' * 90, '\g<1>', '-' * 92), text, flags=S)  # Zitate isolieren
+			text = sub(r'<div\s*class="quote_container">', '', text, flags=S)
+			text = sub(r'<div\s*class="bbcode_quote">', '', text, flags=S)
+			text = sub(r'<div\s*class="bbcode_container">', '', text, flags=S)  # ...Zitate entfernen
 			text = sub(r'<pre\s*class="bbcode_code".*?</pre>', '', text, flags=S)  # Restfetzen entfernen
+#			text = sub(r'<div\s*class="quote_container">.*?</div>', '', text, flags=S)
+#			text = sub(r'<div\s*class="bbcode_quote">.*?</div>', '', text, flags=S)
+#			text = sub(r'<div\s*class="bbcode_container">.*?</div>', '' if remove else '{Zitat}\n', text, flags=S)  # ...Zitate entfernen
+#			text = sub(r'<pre\s*class="bbcode_code".*?</pre>', '', text, flags=S)  # Restfetzen entfernen
 			text = sub(r'\s*</div>\s*', '', text)  # Restfetzen entfernen
 			text = sub(r"<br\s*/>", "", text).replace("\n\n", "\n").strip()  # Umbrüche entfernen
 			return text
@@ -354,6 +359,11 @@ class openATVThread(openATVglobals):
 		title = "%s…" % title[:60] if len(title) > 60 else title
 		posts = split(r'<div class="posthead">', bereich, flags=S)
 		for post in posts:
+
+			with open("/home/root/logs/ATV_post.txt", "a") as ff:
+				ff.write("post: %s:%s\n" % (len(post), post))
+				ff.write("-----------------------\n")
+
 			postid = self.searchOneValue(r'<div id="post_message_(.*?)">', post, "{ERROR}")
 			if postid == self.postlink[self.postlink.rfind("#post") + 5:]:
 				user = self.cleanupUserTags(self.searchOneValue(r'title=".*?"><strong>(.*?)</strong></a>', post, None))
