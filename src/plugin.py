@@ -863,6 +863,9 @@ class openATVMain(openATVglobals):
 
 	def green(self):
 		if self.ready is True:
+			self.menuentries = []
+			self.menulink = []
+			self.titellist = []
 			callInThread(self.threadDownloadPage, "%sactivity.php" % BASEURL, self.localhtml, self.makeMenu)
 
 	def yellow(self):
