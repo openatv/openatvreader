@@ -26,7 +26,7 @@ from Tools.Directories import resolveFilename, SCOPE_PLUGINS
 
 BASEURL = "https://www.opena.tv/"
 AVATARPATH = "/var/volatile/tmp/avatars"
-PLUGINPATH = join(resolveFilename(SCOPE_PLUGINS), "Extensions/openATV/")
+PLUGINPATH = join(resolveFilename(SCOPE_PLUGINS), "Extensions/OpenATVreader/")
 FAVORITEN = join(PLUGINPATH, "db/favoriten")
 
 
@@ -947,4 +947,4 @@ def main(session, **kwargs):
 
 
 def Plugins(**kwargs):
-	return [PluginDescriptor(name='OpenATV Reader', description='opena.tv', where=[PluginDescriptor.WHERE_PLUGINMENU], icon='plugin.png', fnc=main), PluginDescriptor(name='OpenATV Reader', description='opena.tv', where=[PluginDescriptor.WHERE_EXTENSIONSMENU], fnc=main)]
+	return [PluginDescriptor(name='OpenATV Reader', description='Das opena.tv Forum bequem auf dem TV mitlesen', where=[PluginDescriptor.WHERE_PLUGINMENU], icon='plugin.png', fnc=main), PluginDescriptor(name='OpenATV Reader', description='Das opena.tv Forum bequem auf dem TV mitlesen', where=[PluginDescriptor.WHERE_EXTENSIONSMENU], fnc=main)]
