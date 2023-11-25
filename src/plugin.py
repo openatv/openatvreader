@@ -23,7 +23,7 @@ from Screens.Screen import Screen
 from Tools.LoadPixmap import LoadPixmap
 from Tools.Directories import resolveFilename, SCOPE_PLUGINS
 
-VERSION = "V1.1"
+VERSION = "V1.2"
 BASEURL = "https://www.opena.tv/"
 AVATARPATH = "/tmp/avatare"
 PLUGINPATH = join(resolveFilename(SCOPE_PLUGINS), "Extensions/OpenATVreader/")
@@ -58,6 +58,7 @@ class openATVglobals(Screen):
 			text = sub(r'<img src=".*?\s*/>', "" if remove else "{Bild}", text)  # remove pictures
 			text = sub(r'<iframe class="restrain".*?</iframe>', "" if remove else "\n{Video}\n\n", text, flags=S)  # remove videos
 			text = sub(r'<font\s*size=".*?">(.*?)</font>', r'\g<1>', text, flags=S)  # remove font size
+			text = sub(r'<span\s*style=.*?>(.*?)</span>', r'\g<1>', text, flags=S)  # remove font style
 			text = sub(r'<div class="bbcode_container">\s*<div class="bbcode_description">Code:</div>.*?</div>', "{Code}\n\n", text, flags=S)  # remove code
 			text = sub(r'<blockquote\s*class="postcontent\s*restore\s*">\s*(.*?)\s*</blockquote>', "", text, flags=S)  # isolate quotes
 			text = sub(r'\s*<div\s*class="bbcode_postedby">.*?</div>', "", text, flags=S)  # {start} remove quotes... (the order is important here)
@@ -358,7 +359,7 @@ class openATVPost(openATVglobals):
 			title = self.searchOneValue(r'hat auf das Thema.*?">(.*?)</a>\s*im Forum.*?">(.*?)</a>', cutout, "")
 		if not title:  # fallback if not found
 			title = self.searchOneValue(r'<h2 class="title icon">(.*?)</h2>', cutout, "{ERROR}", flag_S=True)
-		self.posttitle = title
+		self.posttitle = title.strip()
 		posts = split(r'<li class="postbitlegacy postbitim postcontainer', cutout, flags=S)[1:]
 		for post in posts:
 			postid = self.searchOneValue(r'<div id="post_message_(.*?)">', post, "{ERROR}")
@@ -411,34 +412,34 @@ class openATVPost(openATVglobals):
 
 	def handleIcon(self, widget, link):
 		filename = join(AVATARPATH, "%s.*" % link[link.rfind("/") + 1:].split(".")[0])
-		picfile = glob(filename)  # possibly the file name had to be renamed according to the correct image type
-		if picfile and exists(picfile[0]):  # use first hit found
-			self.showPic(widget, picfile[0])
+		picfiles = glob(filename)  # possibly the file name had to be renamed according to the correct image type
+		if picfiles and exists(picfiles[0]):  # use first hit found
+			self.showPic(widget, picfiles[0])
 		else:
 			callInThread(self.iconDL, widget, link)
 
 	def iconDL(self, widget, link):
 		link = link.encode("ascii", "xmlcharrefreplace").decode().replace(" ", "%20").replace("\n", "")
-		file = join(AVATARPATH, link[link.rfind("/") + 1:])
+		filename = join(AVATARPATH, link[link.rfind("/") + 1:])
 		try:
 			response = get(ensure_binary(link))
 			response.raise_for_status()
 			content = response.content
 			response.close()
-			with open(file, "wb") as f:
+			with open(filename, "wb") as f:
 				f.write(content)
-			fileparts = file.split(".")
-			pictype = what(file)
+			fileparts = filename.split(".")
+			pictype = what(filename)
 			if pictype and pictype != fileparts[1]:  # Some avatars were incorrectly listed as .GIF although they are .JPG or .PNG
-				filename = "%s.%s" % (fileparts[0], pictype.replace("jpeg", "jpg"))
-				rename(file, filename)
-				file = filename
-			self.showPic(widget, file)
+				newfname = "%s.%s" % (fileparts[0], pictype.replace("jpeg", "jpg"))
+				rename(filename, newfname)
+				filename = newfname
+			self.showPic(widget, filename)
 		except exceptions.RequestException as error:
 			self.downloadError(error)
 
 	def downloadError(self, errormsg):
-		self.session.open(MessageBox, "Der opena.tv Server ist zur Zeit nicht erreichbar.\n%s" % errormsg, MessageBox.TYPE_INFO, close_on_any_key=True)
+		self.session.open(MessageBox, "Der opena.tv Server ist zur Zeit nicht erreichbar.\n%s" % errormsg, MessageBox.TYPE_INFO, timeout=30, close_on_any_key=True)
 
 	def keyYellow(self):
 		if self.ready:
@@ -647,6 +648,7 @@ class openATVMain(openATVglobals):
 			self.menulinks.append(link)
 			menutexts.append([title, desc, date, user, stat])
 			menupics.append([avatar, ""])
+		users = list(dict.fromkeys(users))  # remove dupes
 		userlist = ", ".join(users)
 		userlist = "%s…" % userlist[:200] if len(userlist) > 200 or userlist.endswith(",") else userlist
 		self.menulinks.append("")
@@ -700,6 +702,7 @@ class openATVMain(openATVglobals):
 			self.titlelist.append(title)
 			menutexts.append(["", desc, date, user, postcnt])
 			menupics.append([avatar, statustext])
+		users = list(dict.fromkeys(users))  # remove dupes
 		userlist = ", ".join(users)
 		userlist = "beteiligte Benutzer\n%s…" % userlist[:200] if len(userlist) > 200 or userlist.endswith(",") else "beteiligte Benutzer\n%s" % userlist
 		self.menulinks.append("")
@@ -777,7 +780,7 @@ class openATVMain(openATVglobals):
 			self.downloadError(error)
 
 	def downloadError(self, errormsg):
-		self.session.open(MessageBox, "Der opena.tv Server ist zur Zeit nicht erreichbar.\n%s" % errormsg, MessageBox.TYPE_INFO, close_on_any_key=True)
+		self.session.open(MessageBox, "Der opena.tv Server ist zur Zeit nicht erreichbar.\n%s" % errormsg, MessageBox.TYPE_INFO, timeout=30, close_on_any_key=True)
 
 	def keyOk(self):
 		if self.ready:
@@ -821,7 +824,7 @@ class openATVMain(openATVglobals):
 	def keyYellow(self):
 		if self.ready:
 			if self.favmenu:
-				self.session.open(MessageBox, "Dieses Fenster wurde bereits als Favorit geöffnet!\nUm auf die Favoritenliste zurückzukommen, bitte 1x 'Verlassen/Exit' drücken!\n", type=MessageBox.TYPE_INFO, timeout=5, close_on_any_key=True)
+				self.session.open(MessageBox, "Dieses Fenster wurde bereits als Favorit geöffnet!\nUm auf die Favoritenliste zurückzukommen, bitte 1x 'Verlassen/Exit' drücken!\n", timeout=5, type=MessageBox.TYPE_INFO, close_on_any_key=True)
 			else:
 				self.favmenu = True
 				self.oldlink = self.currlink
@@ -893,17 +896,19 @@ class openATVMain(openATVglobals):
 	def nextPage(self):
 		if self.currmode == "menu":
 			self.keyPageDown()
-		elif self.currlink and self.currmode == "thread" and self.count < self.maxcount:
+		elif self.currmode == "thread" and self.count < self.maxcount:
+			currlink = self.currlink if self.currlink else self.menulinks[self["menu"].getCurrentIndex() - 1]  # else use link of previous entry
 			self.count += 1
-			link = sub(r'-post\d+.*?#post\d+', "-%s.html" % self.count, self.currlink)
+			link = sub(r'-post\d+.*?#post\d+', "-%s.html" % self.count, currlink)
 			callInThread(self.downloadPage, link, self.localhtml2, self.makeThread)
 
 	def prevPage(self):
 		if self.currmode == "menu":
 			self.keyPageUp()
-		elif self.currlink and self.currmode == "thread" and self.count > 1:
+		elif self.currmode == "thread" and self.count > 1:
+			currlink = self.currlink if self.currlink else self.menulinks[self["menu"].getCurrentIndex() - 1]  # else use link of previous entry
 			self.count -= 1
-			link = sub(r'-post\d+.*?#post\d+', "-%s.html" % self.count, self.currlink)
+			link = sub(r'-post\d+.*?#post\d+', "-%s.html" % self.count, currlink)
 			callInThread(self.downloadPage, link, self.localhtml2, self.makeThread)
 
 	def gotoPage(self, number):
