@@ -1,10 +1,10 @@
 <skin>
-	<screen name="openATVMain" position="center,center" size="1850,1020" backgroundColor="#20000000" title=" ">
+	<screen name="openATVMain" position="center,center" size="1850,1020" backgroundColor="#1A0F0F0F" title=" ">
 		<ePixmap position="15,15" size="450,75" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/openATV_fHD.png" alphatest="blend" zPosition="1" />
-		<widget source="version" render="Label" position="435,55" size="65,32" font="Regular;24" halign="left" valign="center" foregroundColor="grey" backgroundColor="#20000000" transparent="1" zPosition="1" />
-		<widget source="headline" render="Label" position="510,42" size="1300,46" font="Regular;36" halign="left" valign="center" wrap="ellipsis" backgroundColor="#20000000" transparent="1" zPosition="1" />
-		<widget source="pagecount" render="Label" position="1650,50" size="200,42" font="Regular;30" halign="left" valign="center" backgroundColor="#20000000" transparent="1" zPosition="1" />
-		<widget source="menu" render="Listbox" position="20,100" size="1800,840" scrollbarMode="showOnDemand" backgroundColor="#20000000" transparent="1" zPosition="1">
+		<widget source="version" render="Label" position="435,55" size="65,32" font="Regular;24" halign="left" valign="center" foregroundColor="grey" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1" />
+		<widget source="headline" render="Label" position="510,42" size="1125,46" font="Regular;36" halign="left" valign="center" wrap="ellipsis" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1" />
+		<widget source="pagecount" render="Label" position="1650,50" size="200,42" font="Regular;30" halign="left" valign="center" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1" />
+		<widget source="menu" render="Listbox" position="20,100" size="1800,840" scrollbarMode="showOnDemand" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1">
 			<convert type="TemplatedMultiContent">
 				{"templates":
 					{"default": (140,[
@@ -20,7 +20,7 @@
 						MultiContentEntryPixmapAlphaTest(pos=(0,0), size=(1805,2), png=5), # line separator
 						MultiContentEntryPixmapAlphaBlend(pos=(10,5), size=(104,104), flags=BT_HALIGN_LEFT|BT_VALIGN_CENTER|BT_SCALE|BT_KEEP_ASPECT_RATIO, png=6), # avatar
 						MultiContentEntryPixmapAlphaBlend(pos=(14,110), size=(96,25), png=7), # online
-						MultiContentEntryText(pos=(160,10), size=(1320,110), font=1, color=0x003ca2c6, color_sel=0x0092cbdf, flags=RT_HALIGN_LEFT|RT_WRAP, text=1), # description
+						MultiContentEntryText(pos=(160,10), size=(1320,114), font=1, color=0x003ca2c6, color_sel=0x0092cbdf, flags=RT_HALIGN_LEFT|RT_WRAP, text=1), # description
 						MultiContentEntryText(pos=(1480,10), size=(280,45), font=2, color=0x005fb300, color_sel=0x0088ff00, flags=RT_HALIGN_RIGHT, text=2), # date
 						MultiContentEntryText(pos=(1480,50), size=(280,45), font=2, color=0x00b2b300, color_sel=0x00ffff00, flags=RT_HALIGN_RIGHT, text=3), # user
 						MultiContentEntryText(pos=(1480,90), size=(280,45), font=2, color=0x003ca2c6, color_sel=0x0092cbdf, flags=RT_HALIGN_RIGHT, text=4) # postcount
@@ -35,25 +35,25 @@
 		<eLabel position="390,e-60" size="10,60" backgroundColor="green" zPosition="1" />
 		<widget name="button_yellow" position="635,e-60" size="10,60" backgroundColor="yellow" zPosition="1" />
 		<eLabel position="910,e-60" size="10,60" backgroundColor="blue" zPosition="1" />
-		<widget source="key_red" render="Label" position="105,e-50" size="300,36" font="Regular;26" foregroundColor="grey" backgroundColor="#20000000" />
-		<widget source="key_green" render="Label" position="410,e-50" size="300,36" font="Regular;26" foregroundColor="grey" backgroundColor="#20000000" />
-		<widget source="key_yellow" render="Label" position="655,e-50" size="300,36" font="Regular;26" foregroundColor="grey" backgroundColor="#20000000" />
-		<widget source="key_blue" render="Label" position="930,e-50" size="300,36" font="Regular;26" foregroundColor="grey" backgroundColor="#20000000" />
+		<widget source="key_red" render="Label" position="105,e-50" size="300,36" font="Regular;26" foregroundColor="grey" backgroundColor="#1A0F0F0F" />
+		<widget source="key_green" render="Label" position="410,e-50" size="300,36" font="Regular;26" foregroundColor="grey" backgroundColor="#1A0F0F0F" />
+		<widget source="key_yellow" render="Label" position="655,e-50" size="300,36" font="Regular;26" foregroundColor="grey" backgroundColor="#1A0F0F0F" />
+		<widget source="key_blue" render="Label" position="930,e-50" size="300,36" font="Regular;26" foregroundColor="grey" backgroundColor="#1A0F0F0F" />
 		<widget name="button_page" position="1235,972" size="65,30" alphatest="blend" zPosition="1" />
-		<widget source="key_page" render="Label" position="1310,970" size="300,36" font="Regular; 26" foregroundColor="grey" backgroundColor="#20000000" transparent="1" />
+		<widget source="key_page" render="Label" position="1310,970" size="300,36" font="Regular; 26" foregroundColor="grey" backgroundColor="#1A0F0F0F" transparent="1" />
 		<widget name="button_keypad" position="1540,969" size="53,38" alphatest="blend" zPosition="1" />
-		<widget source="key_keypad" render="Label" position="1600,970" size="300,36" font="Regular; 26" foregroundColor="grey" backgroundColor="#20000000" transparent="1" />
+		<widget source="key_keypad" render="Label" position="1600,970" size="300,36" font="Regular; 26" foregroundColor="grey" backgroundColor="#1A0F0F0F" transparent="1" />
 	</screen>
 
-	<screen name="getNumber" position="center,center" size="225,150" backgroundColor="#20000000" flags="wfNoBorder" title=" ">
+	<screen name="getNumber" position="center,center" size="225,150" backgroundColor="#1A0F0F0F" flags="wfNoBorder" title=" ">
 		<widget source="number" render="Label" position="center,center" size="225,150" font="Regular;67" halign="center" valign="center" transparent="1" zPosition="1" />
 		<ePixmap position="170,110" size="53,38" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/keypad_fHD.png" alphatest="blend" zPosition="1" />
 	</screen>
 
-	<screen name="openATVPost" position="center,center" size="1850,1020" backgroundColor="#20000000" title=" ">
+	<screen name="openATVPost" position="center,center" size="1850,1020" backgroundColor="#1A0F0F0F" title=" ">
 		<ePixmap position="15,15" size="450,75" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/openATV_fHD.png" alphatest="blend" zPosition="1" />
-		<widget source="version" render="Label" position="435,55" size="65,32" font="Regular;24" halign="left" valign="center" foregroundColor="grey" backgroundColor="#20000000" transparent="1" zPosition="1" />
-		<widget source="headline" render="Label" position="510,42" size="1300,46" font="Regular;36" halign="left" valign="center" wrap="ellipsis" backgroundColor="#20000000" transparent="1" zPosition="1" />
+		<widget source="version" render="Label" position="435,55" size="65,32" font="Regular;24" halign="left" valign="center" foregroundColor="grey" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1" />
+		<widget source="headline" render="Label" position="510,42" size="1125,46" font="Regular;36" halign="left" valign="center" wrap="ellipsis" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1" />
 		<widget source="postid" render="Label" position="1650,10" size="150,32" font="Regular;24" halign="right" valign="center" foregroundColor="grey" transparent="1" zPosition="1" />
 		<widget source="postnr" render="Label" position="1650,40" size="150,46" font="Regular;36" halign="right" valign="center" foregroundColor="grey" transparent="1" zPosition="1" />
 		<ePixmap position="20,100" size="1800,2" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/line_fHD.png" zPosition="1" />
@@ -72,16 +72,16 @@
 		<widget name="textpage" position="40,280" size="1760,650" font="Regular;36" halign="left" foregroundColor="white" scrollbarMode="showOnDemand" transparent="1" zPosition="1" />\
 		<eLabel position="85,e-60" size="10,60" backgroundColor="red" zPosition="1" />
 		<eLabel position="910,e-60" size="10,60" backgroundColor="blue" zPosition="1" />
-		<widget source="key_red" render="Label" position="105,e-50" size="300,36" font="Regular;26" foregroundColor="grey" backgroundColor="#20000000" />
-		<widget source="key_blue" render="Label" position="930,e-50" size="300,36" font="Regular;26" foregroundColor="grey" backgroundColor="#20000000" />
+		<widget source="key_red" render="Label" position="105,e-50" size="300,36" font="Regular;26" foregroundColor="grey" backgroundColor="#1A0F0F0F" />
+		<widget source="key_blue" render="Label" position="930,e-50" size="300,36" font="Regular;26" foregroundColor="grey" backgroundColor="#1A0F0F0F" />
 	</screen>
 
-	<screen name="openATVFav" position="center,center" size="1450,820" backgroundColor="#20000000" title=" ">
+	<screen name="openATVFav" position="center,center" size="1450,820" backgroundColor="#1A0F0F0F" title=" ">
 		<ePixmap position="15,15" size="450,75" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/openATV_fHD.png" alphatest="blend" zPosition="1" />
-		<widget source="version" render="Label" position="435,55" size="65,32" font="Regular;24" halign="left" valign="center" foregroundColor="grey" backgroundColor="#20000000" transparent="1" zPosition="1" />
-		<widget source="headline" render="Label" position="510,42" size="1300,46" font="Regular;36" halign="left" valign="center" wrap="ellipsis" backgroundColor="#20000000" transparent="1" zPosition="1" />
+		<widget source="version" render="Label" position="435,55" size="65,32" font="Regular;24" halign="left" valign="center" foregroundColor="grey" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1" />
+		<widget source="headline" render="Label" position="510,42" size="1300,46" font="Regular;36" halign="left" valign="center" wrap="ellipsis" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1" />
 		<ePixmap position="20,100" size="1410,2" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/line_fHD.png" zPosition="1" />
-		<widget source="favmenu" render="Listbox" position="20,110" size="1410,630" scrollbarMode="showOnDemand" backgroundColor="#20000000" transparent="1" zPosition="1">
+		<widget source="favmenu" render="Listbox" position="20,110" size="1410,630" scrollbarMode="showOnDemand" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1">
 			<convert type="TemplatedMultiContent">
 				{"template": [
 				MultiContentEntryText(pos=(0,0), size=(1800,45), font=0, color="grey", color_sel="white", flags=RT_HALIGN_LEFT, text=0) # favorite
@@ -93,7 +93,7 @@
 		</widget>
 		<eLabel position="85,e-60" size="10,60" backgroundColor="red" zPosition="1" />
 		<eLabel position="910,e-60" size="10,60" backgroundColor="blue" zPosition="1" />
-		<widget source="key_red" render="Label" position="105,e-50" size="300,36" font="Regular;26" foregroundColor="grey" backgroundColor="#20000000"/>
-		<widget source="key_blue" render="Label" position="930,e-50" size="300,36" font="Regular;26" foregroundColor="grey" backgroundColor="#20000000"/>
+		<widget source="key_red" render="Label" position="105,e-50" size="300,36" font="Regular;26" foregroundColor="grey" backgroundColor="#1A0F0F0F"/>
+		<widget source="key_blue" render="Label" position="930,e-50" size="300,36" font="Regular;26" foregroundColor="grey" backgroundColor="#1A0F0F0F"/>
 	</screen>
 </skin>
