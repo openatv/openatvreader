@@ -41,7 +41,7 @@
 		<widget source="key_blue" render="Label" position="620,e-33" size="200,24" font="Regular;17" foregroundColor="grey" backgroundColor="#1A0F0F0F" />
 		<widget name="button_page" position="823,648" size="43,20" alphatest="blend" zPosition="1" />
 		<widget source="key_page" render="Label" position="873,646" size="200,24" font="Regular;17" foregroundColor="grey" backgroundColor="#1A0F0F0F" transparent="1" />
-		<widget name="button_keypad" position="1026,646" size="35,25" alphatest="blend" zPosition="1" />
+		<widget name="button_keypad" position="1026,650" size="35,25" alphatest="blend" zPosition="1" />
 		<widget source="key_keypad" render="Label" position="1066,646" size="200,24" font="Regular;17" foregroundColor="grey" backgroundColor="#1A0F0F0F" transparent="1" />
 	</screen>
 
@@ -66,8 +66,8 @@
 		<widget source="thxgiven" render="Label" position="426,106" size="266,28" font="Regular;21" halign="left" valign="center" foregroundColor="#00b2b300" transparent="1" zPosition="1" />
 		<widget source="thxreceived" render="Label" position="426,133" size="266,28" font="Regular;21" halign="left" valign="center" foregroundColor="#005fb300" transparent="1" zPosition="1" />
 		<widget source="status" render="Label" position="866,80" size="333,28" font="Regular;21" halign="right" valign="center" foregroundColor="#0092cbdf" transparent="1" zPosition="1" />
-		<widget source="registered" render="Label" position="933,106" size="266,28" font="Regular;21" halign="right" valign="center" foregroundColor="#00b2b300" transparent="1" zPosition="1" />
-		<widget source="datum" render="Label" position="933,133" size="266,28" font="Regular;21" halign="right" valign="center" foregroundColor="#005fb300" transparent="1" zPosition="1" />
+		<widget source="registered" render="Label" position="866,106" size="333,28" font="Regular;21" halign="right" valign="center" foregroundColor="#00b2b300" transparent="1" zPosition="1" />
+		<widget source="datum" render="Label" position="866,133" size="333,28" font="Regular;21" halign="right" valign="center" foregroundColor="#005fb300" transparent="1" zPosition="1" />
 		<ePixmap position="13,166" size="1200,1" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/line_HD.png" zPosition="1" />
 		<widget name="textpage" position="26,186" size="1173,433" font="Regular;24" halign="left" foregroundColor="white" scrollbarMode="showOnDemand" transparent="1" zPosition="1" />\
 		<eLabel position="56,e-40" size="6,40" backgroundColor="red" zPosition="1" />
