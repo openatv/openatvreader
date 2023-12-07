@@ -1,5 +1,5 @@
 <skin>
-	<screen name="openATVMain" position="center,center" size="1233,680" backgroundColor="#1A0F0F0F" title=" ">
+<screen name="openATVMain" position="center,center" size="1233,680" backgroundColor="#1A0F0F0F" title=" ">
 		<ePixmap position="10,10" size="300,50" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/openATV_HD.png" alphatest="blend" zPosition="1" />
 		<widget source="version" render="Label" position="290,36" size="43,21" font="Regular;16" halign="left" valign="center" foregroundColor="grey" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1" />
 		<widget source="headline" render="Label" position="340,28" size="750,30" font="Regular;24" halign="left" valign="center" wrap="ellipsis" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1" />
@@ -31,18 +31,19 @@
 				}
 			</convert>
 		</widget>
-		<eLabel position="56,e-40" size="6,40" backgroundColor="red" zPosition="1" />
-		<eLabel position="260,e-40" size="6,40" backgroundColor="green" zPosition="1" />
-		<widget name="button_yellow" position="423,e-40" size="6,40" backgroundColor="yellow" zPosition="1" />
-		<eLabel position="606,e-40" size="6,40" backgroundColor="blue" zPosition="1" />
-		<widget source="key_red" render="Label" position="70,e-33" size="200,24" font="Regular;17" foregroundColor="grey" backgroundColor="#1A0F0F0F" />
-		<widget source="key_green" render="Label" position="273,e-33" size="200,24" font="Regular;17" foregroundColor="grey" backgroundColor="#1A0F0F0F" />
-		<widget source="key_yellow" render="Label" position="436,e-33" size="200,24" font="Regular;17" foregroundColor="grey" backgroundColor="#1A0F0F0F" />
-		<widget source="key_blue" render="Label" position="620,e-33" size="200,24" font="Regular;17" foregroundColor="grey" backgroundColor="#1A0F0F0F" />
-		<widget name="button_page" position="823,648" size="43,20" alphatest="blend" zPosition="1" />
-		<widget source="key_page" render="Label" position="873,646" size="200,24" font="Regular;17" foregroundColor="grey" backgroundColor="#1A0F0F0F" transparent="1" />
-		<widget name="button_keypad" position="1026,650" size="35,25" alphatest="blend" zPosition="1" />
-		<widget source="key_keypad" render="Label" position="1066,646" size="200,24" font="Regular;17" foregroundColor="grey" backgroundColor="#1A0F0F0F" transparent="1" />
+		<ePixmap position="13,625" size="1187,1" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/line_HD.png" zPosition="1" />
+		<ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_red_HD.png" position="13,636" size="26,38" alphatest="blend" />
+		<ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_green_HD.png" position="220,636" size="26,38" alphatest="blend" />
+		<ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_yellow_HD.png" position="427,636" size="26,38" alphatest="blend" />
+		<ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_blue_HD.png" position="636,636" size="26,38" alphatest="blend" />
+		<widget source="key_red" render="Label" position="37,636" size="180,38" font="Regular;18" foregroundColor="grey" backgroundColor="#1A0F0F0F" halign="left" valign="center"/>
+		<widget source="key_green" render="Label" position="244,636" size="180,38" font="Regular;18" foregroundColor="grey" backgroundColor="#1A0F0F0F" halign="left" valign="center"/>
+		<widget source="key_yellow" render="Label" position="451,636" size="180,38" font="Regular;18" foregroundColor="grey" backgroundColor="#1A0F0F0F" halign="left" valign="center"/>
+		<widget source="key_blue" render="Label" position="658,636" size="180,38" font="Regular;18" foregroundColor="grey" backgroundColor="#1A0F0F0F" halign="left" valign="center"/>
+		<widget name="button_page" position="822,646" size="43,20" alphatest="blend" zPosition="1" />
+		<widget source="key_page" render="Label" position="870,636" size="200,38" font="Regular;18" foregroundColor="grey" backgroundColor="#1A0F0F0F" transparent="1" halign="left" valign="center"/>
+		<widget name="button_keypad" position="1028,645" size="35,25" alphatest="blend" zPosition="1" />
+		<widget source="key_keypad" render="Label" position="1068,636" size="230,38" font="Regular;18" foregroundColor="grey" backgroundColor="#1A0F0F0F" transparent="1" halign="left" valign="center"/>
 	</screen>
 
 	<screen name="getNumber" position="center,center" size="150,100" backgroundColor="#1A0F0F0F" flags="wfNoBorder" title=" ">
@@ -69,11 +70,11 @@
 		<widget source="registered" render="Label" position="866,106" size="333,28" font="Regular;21" halign="right" valign="center" foregroundColor="#00b2b300" transparent="1" zPosition="1" />
 		<widget source="datum" render="Label" position="866,133" size="333,28" font="Regular;21" halign="right" valign="center" foregroundColor="#005fb300" transparent="1" zPosition="1" />
 		<ePixmap position="13,166" size="1200,1" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/line_HD.png" zPosition="1" />
-		<widget name="textpage" position="26,186" size="1173,433" font="Regular;24" halign="left" foregroundColor="white" scrollbarMode="showOnDemand" transparent="1" zPosition="1" />\
-		<eLabel position="56,e-40" size="6,40" backgroundColor="red" zPosition="1" />
-		<eLabel position="606,e-40" size="6,40" backgroundColor="blue" zPosition="1" />
-		<widget source="key_red" render="Label" position="70,e-33" size="200,24" font="Regular;17" foregroundColor="grey" backgroundColor="#1A0F0F0F" />
-		<widget source="key_blue" render="Label" position="620,e-33" size="200,24" font="Regular;17" foregroundColor="grey" backgroundColor="#1A0F0F0F" />
+		<widget name="textpage" position="26,186" size="1173,433" font="Regular;24" halign="left" foregroundColor="white" scrollbarMode="showOnDemand" transparent="1" zPosition="1" />
+		<ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_red_HD.png" position="13,636" size="26,38" alphatest="blend" />
+		<ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_blue_HD.png" position="636,636" size="26,38" alphatest="blend" />
+		<widget source="key_red" render="Label" position="37,636" size="180,38" font="Regular;18" foregroundColor="grey" backgroundColor="#1A0F0F0F" halign="left" valign="center"/>
+		<widget source="key_blue" render="Label" position="658,636" size="180,38" font="Regular;18" foregroundColor="grey" backgroundColor="#1A0F0F0F" halign="left" valign="center"/>
 	</screen>
 
 	<screen name="openATVFav" position="center,center" size="966,546" backgroundColor="#1A0F0F0F" title=" ">
@@ -91,9 +92,9 @@
 				}
 			</convert>
 		</widget>
-		<eLabel position="56,e-40" size="6,40" backgroundColor="red" zPosition="1" />
-		<eLabel position="606,e-40" size="6,40" backgroundColor="blue" zPosition="1" />
-		<widget source="key_red" render="Label" position="70,e-33" size="200,24" font="Regular;17" foregroundColor="grey" backgroundColor="#1A0F0F0F" />
-		<widget source="key_blue" render="Label" position="620,e-33" size="200,24" font="Regular;17" foregroundColor="grey" backgroundColor="#1A0F0F0F" />
+		<ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_red_HD.png" position="13,636" size="26,38" alphatest="blend" />
+		<ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_blue_HD.png" position="636,636" size="26,38" alphatest="blend" />
+		<widget source="key_red" render="Label" position="37,636" size="180,38" font="Regular;18" foregroundColor="grey" backgroundColor="#1A0F0F0F" halign="left" valign="center"/>
+		<widget source="key_blue" render="Label" position="658,636" size="180,38" font="Regular;18" foregroundColor="grey" backgroundColor="#1A0F0F0F" halign="left" valign="center"/>
 	</screen>
 </skin>
