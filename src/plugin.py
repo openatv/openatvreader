@@ -23,7 +23,7 @@ from Screens.Screen import Screen
 from Tools.LoadPixmap import LoadPixmap
 from Tools.Directories import resolveFilename, SCOPE_PLUGINS
 
-VERSION = "V1.2"
+VERSION = "V1.3"
 BASEURL = "https://www.opena.tv/"
 AVATARPATH = "/tmp/avatare"
 PLUGINPATH = join(resolveFilename(SCOPE_PLUGINS), "Extensions/OpenATVreader/")
@@ -31,7 +31,6 @@ FAVORITEN = join(PLUGINPATH, "db/favoriten")
 
 
 class openATVglobals(Screen):
-
 	def cleanupDescTags(self, text, remove=True):  # remote=True mercilessly cuts the text down to a minimum for MultiContentEntryLines
 		if text:
 			text = text.replace("<u>", "").replace("</u>", "").replace("<i>", "").replace("</i>", "")
@@ -50,16 +49,17 @@ class openATVglobals(Screen):
 				listing += "%s. %s\n" % (idx + 1, item)
 			text = sub(r'<br\s*/>', "", text).strip()
 			text = sub(r'<ol class="decimal">(.*?)</ol>', listing, text)  # search for decimal listing
-			text = sub(r'<a.*?href="(.*?)"\s*target="_blank">(.*?)</a>', "%s {%s}" % (r'\g<2>', r'\g<1>'), text)  # remove links
+			text = sub(r'<a.*?href=".*?"\s*target="_blank">(.*?)</a>', "{Link: %s}" % r'\g<1>', text)  # remove links
 			text = self.cleanupUserTags(text)
-			text = sub(r'<a\s*rel="nofollow".*?</a>', "" if remove else "\n{Anhang}\n\n", text, flags=S)  # remove attachments
+			text = sub(r'<a\s*rel="nofollow".*?</a>', "" if remove else "\n{Anhang}\n", text, flags=S)  # remove attachments
 			text = sub(r'<img\s*src=".*?class="inlineimg"\s*/>', "" if remove else "{Emoicon}", text, flags=S)  # remove EmoIcons
-			text = sub(r'<a\s*href=".*?"\s*id="attachment.*?/></a>', "" if remove else "\n{Bild}\n\n", text)  # remove pictures
+			text = sub(r'<a\s*href=".*?"\s*id="attachment.*?/></a>', "" if remove else "\n{Bild}\n", text)  # remove pictures
 			text = sub(r'<img src=".*?\s*/>', "" if remove else "{Bild}", text)  # remove pictures
-			text = sub(r'<iframe class="restrain".*?</iframe>', "" if remove else "\n{Video}\n\n", text, flags=S)  # remove videos
+			text = sub(r'<iframe class="restrain".*?</iframe>', "" if remove else "\n{Video}\n", text, flags=S)  # remove videos
 			text = sub(r'<font\s*size=".*?">(.*?)</font>', r'\g<1>', text, flags=S)  # remove font size
+			text = sub(r'<font\s*color=".*?">(.*?)</font>', r'\g<1>', text, flags=S)  # remove font color
 			text = sub(r'<span\s*style=.*?>(.*?)</span>', r'\g<1>', text, flags=S)  # remove font style
-			text = sub(r'<div class="bbcode_container">\s*<div class="bbcode_description">Code:</div>.*?</div>', "{Code}\n\n", text, flags=S)  # remove code
+			text = sub(r'<div class="bbcode_container">\s*<div class="bbcode_description">Code:</div>.*?</div>', "{Code}\n", text, flags=S)  # remove code
 			text = sub(r'<blockquote\s*class="postcontent\s*restore\s*">\s*(.*?)\s*</blockquote>', "", text, flags=S)  # isolate quotes
 			text = sub(r'\s*<div\s*class="bbcode_postedby">.*?</div>', "", text, flags=S)  # {start} remove quotes... (the order is important here)
 			text = sub(r'\s*<div\s*class="bbcode_quote_container">.*?</div>', "", text, flags=S)
@@ -366,6 +366,9 @@ class openATVPost(openATVglobals):
 			if postid == self.currlink[self.currlink.rfind("#post") + 5:]:
 				user = self.cleanupUserTags(self.searchOneValue(r'title=".*?"><strong>(.*?)</strong></a>', post, ""))
 				if user and "ForumBot" not in user:
+					# for debug purposes only
+					# with open("/home/root/logs/atvreader.txt", "w") as f:
+					# 	f.write(post)
 					postnr = self.searchOneValue(r'class="postcounter">#(.*?)</a>', post, "0")
 					avatar = self.searchOneValue(r'<img src="(.*?)" alt="Avatar von', post, join(PLUGINPATH, "icons/unknown.png"))
 					self.handleIcon(self["avatar"], avatar)
@@ -387,15 +390,15 @@ class openATVPost(openATVglobals):
 					desc = self.cleanupDescTags(desc, remove=False)
 					if date == "{kein Datum}{keine Uhrzeit}" and desc == "{keine Beschreibung}":
 						continue
-					lastedit = self.searchOneValue(r'<blockquote class="postcontent lastedited">(.*?)</blockquote>', post, "")
+					lastedit = self.searchOneValue(r'<blockquote class="postcontent lastedited">(.*?)</blockquote>', post, "", flag_S=True)
 					lastedit = lastedit.strip().replace("\t", "").replace('<span class="time">', "").replace('<span class="reason">', "").replace('</span>', "").split("\n")
 					lastedit = list(filter(None, lastedit))  # remove empty entries
 					if lastedit:
 						desc += "\n\n%s %s" % (lastedit[0], lastedit[1] if len(lastedit) > 1 else "")
-					thxqty = self.searchOneValue(r'<div class="posthead">\s*<span class="postdate">(.*?)</span>\s*</div>', post, "", flag_S=True)
-					thxfrom = self.searchOneValue(r'<b>(.*?)</b></font></a> bedankten sich', post, "")
+					thxqty = self.searchOneValue(r'<span class="postdate">Danke - (.*?) Thanks</span>', post, "", flag_S=True)
+					thxfrom = self.cleanupDescTags(self.searchOneValue(r'>(.*?)</a> bedankten sich', post, ""))
 					if thxfrom:
-						desc += "\n\n%s\n%s bedankten sich" % (thxqty, thxfrom)
+						desc += "\n\nDanke - %s Thanks  (%s bedankte sich)" % (thxqty, thxfrom) if int(thxqty) == 1 else "\n\nDanke - %s Thanks  (%s bedankten sich)" % (thxqty, thxfrom)
 					self["headline"].setText(self.posttitle)
 					self["postid"].setText("ID: %s" % postid)
 					self["postnr"].setText("#%s" % postnr)

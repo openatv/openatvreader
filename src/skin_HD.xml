@@ -2,37 +2,37 @@
 <screen name="openATVMain" position="center,center" size="1233,680" backgroundColor="#1A0F0F0F" title=" ">
 		<ePixmap position="10,10" size="300,50" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/openATV_HD.png" alphatest="blend" zPosition="1" />
 		<widget source="version" render="Label" position="290,36" size="43,21" font="Regular;16" halign="left" valign="center" foregroundColor="grey" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1" />
-		<widget source="global.CurrentTime" render="Label" position="1080,10" size="140,60" font="Regular;50" noWrap="1" halign="center" valign="bottom" foregroundColor="#00FFFFFF" backgroundColor="#1A0F0F0F" transparent="1">
+		<widget source="global.CurrentTime" render="Label" position="1080,10" size="130,28" font="Regular;28" noWrap="1" halign="right" valign="top" foregroundColor="#00FFFFFF" backgroundColor="#1A0F0F0F" transparent="1">
 			<convert type="ClockToText">Default</convert>
 		</widget>
-		<widget source="global.CurrentTime" render="Label" position="920,10" size="160,26" font="Regular;16" noWrap="1" halign="right" valign="bottom" foregroundColor="#00FFFFFF" backgroundColor="#1A0F0F0F" transparent="1">
+		<widget source="global.CurrentTime" render="Label" position="940,10" size="160,26" font="Regular;16" noWrap="1" halign="right" valign="bottom" foregroundColor="#00FFFFFF" backgroundColor="#1A0F0F0F" transparent="1">
 			<convert type="ClockToText">Format:%A</convert>
 		</widget>
-		<widget source="global.CurrentTime" render="Label" position="920,34" size="160,26" font="Regular;16" noWrap="1" halign="right" valign="bottom" foregroundColor="#00FFFFFF" backgroundColor="#1A0F0F0F" transparent="1">
+		<widget source="global.CurrentTime" render="Label" position="940,34" size="160,26" font="Regular;16" noWrap="1" halign="right" valign="bottom" foregroundColor="#00FFFFFF" backgroundColor="#1A0F0F0F" transparent="1">
 			<convert type="ClockToText">Format:%e. %B</convert>
 		</widget>
 		<widget source="headline" render="Label" position="340,28" size="750,30" font="Regular;24" halign="left" valign="center" wrap="ellipsis" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1" />
-		<widget source="pagecount" render="Label" position="1100,33" size="133,28" font="Regular;20" halign="left" valign="center" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1" />
+		<widget source="pagecount" render="Label" position="1080,36" size="130,26" font="Regular;20" halign="right" valign="center" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1" />
 		<widget source="menu" render="Listbox" position="13,66" size="1200,560" scrollbarMode="showOnDemand" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1">
 			<convert type="TemplatedMultiContent">
 				{"templates":
 					{"default": (93,[
-						MultiContentEntryPixmapAlphaTest(pos=(0,0), size=(1203,1), png=5),  # line separator
-						MultiContentEntryPixmapAlphaBlend(pos=(6,6), size=(80,80), flags=BT_HALIGN_LEFT|BT_VALIGN_CENTER|BT_SCALE|BT_KEEP_ASPECT_RATIO, png=6),  # avatar
-						MultiContentEntryText(pos=(106,6), size=(880,33), font=0, color="grey" , color_sel="white" , flags=RT_HALIGN_LEFT|RT_ELLIPSIS, text=0),  # theme
-						MultiContentEntryText(pos=(106,33), size=(880,53), font=1, color=0x003ca2c6, color_sel=0x00a6a6a6, flags=RT_HALIGN_LEFT|RT_WRAP, text=1),  # description
-						MultiContentEntryText(pos=(986,6), size=(186,30), font=2, color=0x005fb300, color_sel=0x0088ff00, flags=RT_HALIGN_RIGHT, text=2),  # date
-						MultiContentEntryText(pos=(986,33), size=(186,30), font=2, color=0x00b2b300, color_sel=0x00ffff00, flags=RT_HALIGN_RIGHT, text=3),  # user
-						MultiContentEntryText(pos=(986,60), size=(186,30), font=2, color=0x003ca2c6, color_sel=0x0092cbdf, flags=RT_HALIGN_RIGHT, text=4)  # statistic
+						MultiContentEntryPixmapAlphaTest(pos=(0,0), size=(1203,1), png=5), # line separator
+						MultiContentEntryPixmapAlphaBlend(pos=(6,6), size=(80,80), flags=BT_HALIGN_LEFT|BT_VALIGN_CENTER|BT_SCALE|BT_KEEP_ASPECT_RATIO, png=6), # avatar
+						MultiContentEntryText(pos=(106,6), size=(880,33), font=0, color="grey" , color_sel="white" , flags=RT_HALIGN_LEFT|RT_ELLIPSIS, text=0), # theme
+						MultiContentEntryText(pos=(106,33), size=(880,53), font=1, color=0x003ca2c6, color_sel=0x00a6a6a6, flags=RT_HALIGN_LEFT|RT_WRAP, text=1), # description
+						MultiContentEntryText(pos=(986,6), size=(186,30), font=2, color=0x005fb300, color_sel=0x0088ff00, flags=RT_HALIGN_RIGHT, text=2), # date
+						MultiContentEntryText(pos=(986,33), size=(186,30), font=2, color=0x00b2b300, color_sel=0x00ffff00, flags=RT_HALIGN_RIGHT, text=3), # user
+						MultiContentEntryText(pos=(986,60), size=(186,30), font=2, color=0x003ca2c6, color_sel=0x0092cbdf, flags=RT_HALIGN_RIGHT, text=4)# statistic
 						]),
 						"thread": (93,[
-						MultiContentEntryPixmapAlphaTest(pos=(0,0), size=(1203,1), png=5),  # line separator
-						MultiContentEntryPixmapAlphaBlend(pos=(6,3), size=(69,69), flags=BT_HALIGN_LEFT|BT_VALIGN_CENTER|BT_SCALE|BT_KEEP_ASPECT_RATIO, png=6),  # avatar
-						MultiContentEntryPixmapAlphaBlend(pos=(9,73), size=(64,16), png=7),  # online
-						MultiContentEntryText(pos=(106,6), size=(880,76), font=1, color=0x003ca2c6, color_sel=0x0092cbdf, flags=RT_HALIGN_LEFT|RT_WRAP, text=1),  # description
-						MultiContentEntryText(pos=(986,6), size=(186,30), font=2, color=0x005fb300, color_sel=0x0088ff00, flags=RT_HALIGN_RIGHT, text=2),  # date
-						MultiContentEntryText(pos=(986,33), size=(186,30), font=2, color=0x00b2b300, color_sel=0x00ffff00, flags=RT_HALIGN_RIGHT, text=3),  # user
-						MultiContentEntryText(pos=(986,60), size=(186,30), font=2, color=0x003ca2c6, color_sel=0x0092cbdf, flags=RT_HALIGN_RIGHT, text=4)  # postcount
+						MultiContentEntryPixmapAlphaTest(pos=(0,0), size=(1203,1), png=5), # line separator
+						MultiContentEntryPixmapAlphaBlend(pos=(6,3), size=(69,69), flags=BT_HALIGN_LEFT|BT_VALIGN_CENTER|BT_SCALE|BT_KEEP_ASPECT_RATIO, png=6), # avatar
+						MultiContentEntryPixmapAlphaBlend(pos=(9,73), size=(64,16), png=7), # online
+						MultiContentEntryText(pos=(106,6), size=(880,76), font=1, color=0x003ca2c6, color_sel=0x0092cbdf, flags=RT_HALIGN_LEFT|RT_WRAP, text=1), # description
+						MultiContentEntryText(pos=(986,6), size=(186,30), font=2, color=0x005fb300, color_sel=0x0088ff00, flags=RT_HALIGN_RIGHT, text=2), # date
+						MultiContentEntryText(pos=(986,33), size=(186,30), font=2, color=0x00b2b300, color_sel=0x00ffff00, flags=RT_HALIGN_RIGHT, text=3), # user
+						MultiContentEntryText(pos=(986,60), size=(186,30), font=2, color=0x003ca2c6, color_sel=0x0092cbdf, flags=RT_HALIGN_RIGHT, text=4)# postcount
 						])
 					},
 				"fonts": [gFont("Regular",22), gFont("Regular",20), gFont("Regular",18)],
@@ -94,7 +94,7 @@
 		<widget source="favmenu" render="Listbox" position="13,73" size="940,420" scrollbarMode="showOnDemand" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1">
 			<convert type="TemplatedMultiContent">
 				{"template": [
-				MultiContentEntryText(pos=(0,0), size=(1200,30), font=0, color="grey" , color_sel="white" , flags=RT_HALIGN_LEFT, text=0)  # favorite
+				MultiContentEntryText(pos=(0,0), size=(1200,30), font=0, color="grey" , color_sel="white" , flags=RT_HALIGN_LEFT, text=0)# favorite
 				],
 				"fonts": [gFont("Regular",22)],
 				"itemHeight":30
