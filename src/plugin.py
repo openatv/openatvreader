@@ -51,15 +51,15 @@ class openATVglobals(Screen):
 			text = sub(r'<ol class="decimal">(.*?)</ol>', listing, text)  # search for decimal listing
 			text = sub(r'<a.*?href=".*?"\s*target="_blank">(.*?)</a>', "{Link: %s}" % r'\g<1>', text)  # remove links
 			text = self.cleanupUserTags(text)
-			text = sub(r'<a\s*rel="nofollow".*?</a>', "" if remove else "\n{Anhang}\n", text, flags=S)  # remove attachments
+			text = sub(r'<a\s*rel="nofollow".*?</a>', "" if remove else "{Anhang}", text, flags=S)  # remove attachments
 			text = sub(r'<img\s*src=".*?class="inlineimg"\s*/>', "" if remove else "{Emoicon}", text, flags=S)  # remove EmoIcons
-			text = sub(r'<a\s*href=".*?"\s*id="attachment.*?/></a>', "" if remove else "\n{Bild}\n", text)  # remove pictures
+			text = sub(r'<a\s*href=".*?"\s*id="attachment.*?/></a>', "" if remove else "{Bild}", text)  # remove pictures
 			text = sub(r'<img src=".*?\s*/>', "" if remove else "{Bild}", text)  # remove pictures
 			text = sub(r'<iframe class="restrain".*?</iframe>', "" if remove else "\n{Video}\n", text, flags=S)  # remove videos
 			text = sub(r'<font\s*size=".*?">(.*?)</font>', r'\g<1>', text, flags=S)  # remove font size
 			text = sub(r'<font\s*color=".*?">(.*?)</font>', r'\g<1>', text, flags=S)  # remove font color
 			text = sub(r'<span\s*style=.*?>(.*?)</span>', r'\g<1>', text, flags=S)  # remove font style
-			text = sub(r'<div class="bbcode_container">\s*<div class="bbcode_description">Code:</div>.*?</div>', "{Code}\n", text, flags=S)  # remove code
+			text = sub(r'<div class="bbcode_container">\s*<div class="bbcode_description">Code:</div>.*?</div>', "{Code}", text, flags=S)  # remove code
 			text = sub(r'<blockquote\s*class="postcontent\s*restore\s*">\s*(.*?)\s*</blockquote>', "", text, flags=S)  # isolate quotes
 			text = sub(r'\s*<div\s*class="bbcode_postedby">.*?</div>', "", text, flags=S)  # {start} remove quotes... (the order is important here)
 			text = sub(r'\s*<div\s*class="bbcode_quote_container">.*?</div>', "", text, flags=S)
@@ -79,7 +79,7 @@ class openATVglobals(Screen):
 			text = sub(r'<strike>(.*?)</strike>', r'\g<1>', text)  # remove strikethrough
 			text = sub(r'<font\s*color=".*?">(.*?)</font>', r'\g<1>', text)  # remove font color
 			text = sub(r'<marquee\s*direction=".*?" >(.*?)</marquee>', r'\g<1>', text)  # remove marketing tag
-			return text.replace("<b>", "").replace("</b>", "")  # remove breaks / newlines
+			return text.replace("<b>", "").replace("</b>", "").replace("</font>", "")  # remove breaks / newlines / font tag
 		return ""
 
 	def searchOneValue(self, regex, text, fallback, flag_S=False):
@@ -368,7 +368,7 @@ class openATVPost(openATVglobals):
 				if user and "ForumBot" not in user:
 					# for debug purposes only
 					# with open("/home/root/logs/atvreader.txt", "w") as f:
-					# 	f.write(post)
+					#	f.write(post)
 					postnr = self.searchOneValue(r'class="postcounter">#(.*?)</a>', post, "0")
 					avatar = self.searchOneValue(r'<img src="(.*?)" alt="Avatar von', post, join(PLUGINPATH, "icons/unknown.png"))
 					self.handleIcon(self["avatar"], avatar)
@@ -396,8 +396,13 @@ class openATVPost(openATVglobals):
 					if lastedit:
 						desc += "\n\n%s %s" % (lastedit[0], lastedit[1] if len(lastedit) > 1 else "")
 					thxqty = self.searchOneValue(r'<span class="postdate">Danke - (.*?) Thanks</span>', post, "", flag_S=True)
-					thxfrom = self.cleanupDescTags(self.searchOneValue(r'>(.*?)</a> bedankten sich', post, ""))
-					if thxfrom:
+					thxfrom = []
+					for thx in self.searchOneValue(r'<a href=(.*?)bedankten sich', post, "").split(","):
+						thxfound = self.searchOneValue(r'>(.*?)</a>', thx, "").strip()
+						if thxfound:
+							thxfrom.append(self.cleanupUserTags(self.searchOneValue(r'>(.*?)</a>', thx, "").strip()))
+					if thxfrom and thxqty:
+						thxfrom = ", ".join(thxfrom)
 						desc += "\n\nDanke - %s Thanks  (%s bedankte sich)" % (thxqty, thxfrom) if int(thxqty) == 1 else "\n\nDanke - %s Thanks  (%s bedankten sich)" % (thxqty, thxfrom)
 					self["headline"].setText(self.posttitle)
 					self["postid"].setText("ID: %s" % postid)
