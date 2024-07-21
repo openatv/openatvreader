@@ -23,7 +23,7 @@ from Screens.Screen import Screen
 from Tools.LoadPixmap import LoadPixmap
 from Tools.Directories import resolveFilename, SCOPE_PLUGINS
 
-VERSION = "V1.3"
+VERSION = "V1.4"
 BASEURL = "https://www.opena.tv/"
 AVATARPATH = "/tmp/avatare"
 PLUGINPATH = join(resolveFilename(SCOPE_PLUGINS), "Extensions/OpenATVreader/")
@@ -52,8 +52,8 @@ class openATVglobals(Screen):
 			text = sub(r'<a.*?href=".*?"\s*target="_blank">(.*?)</a>', "{Link: %s}" % r'\g<1>', text)  # remove links
 			text = self.cleanupUserTags(text)
 			text = sub(r'<a\s*rel="nofollow".*?</a>', "" if remove else "{Anhang}", text, flags=S)  # remove attachments
+			text = sub(r'<a.\s*href=".*?"\s*id="attachment.*?/></a>', "" if remove else "{Bild}", text)  # remove pictures
 			text = sub(r'<img\s*src=".*?class="inlineimg"\s*/>', "" if remove else "{Emoicon}", text, flags=S)  # remove EmoIcons
-			text = sub(r'<a\s*href=".*?"\s*id="attachment.*?/></a>', "" if remove else "{Bild}", text)  # remove pictures
 			text = sub(r'<img src=".*?\s*/>', "" if remove else "{Bild}", text)  # remove pictures
 			text = sub(r'<iframe class="restrain".*?</iframe>', "" if remove else "\n{Video}\n", text, flags=S)  # remove videos
 			text = sub(r'<font\s*size=".*?">(.*?)</font>', r'\g<1>', text, flags=S)  # remove font size
@@ -90,7 +90,7 @@ class openATVglobals(Screen):
 		text = search(regex, text, flag_S) if flag_S else search(regex, text)
 		return (text.group(1), text.group(2)) if text else (fallback1, fallback2)
 
-	def downloadPage(self, link, file, success):
+	def downloadPage(self, link, file, success, movetoEnd=False):
 		link = link.encode("ascii", "xmlcharrefreplace").decode().replace(" ", "%20").replace("\n", "")
 		try:
 			response = get(ensure_binary(link))
@@ -99,7 +99,10 @@ class openATVglobals(Screen):
 			response.close()
 			with open(file, "wb") as f:
 				f.write(content)
-			success()
+			if movetoEnd:
+				success(movetoEnd)
+			else:
+				success()
 		except exceptions.RequestException as error:
 			self.downloadError(error)
 
@@ -670,7 +673,7 @@ class openATVMain(openATVglobals):
 		self.ready = True
 		self.updateSkin()
 
-	def makeThread(self):
+	def makeThread(self, movetoEnd=False):
 		self.titlelist = []
 		self.menulinks = []
 		output = open(self.localhtml2, "rb").read()
@@ -730,9 +733,9 @@ class openATVMain(openATVglobals):
 			self["key_page"].setText("Seite vor/zurück")
 			self["key_keypad"].setText("direkt zur Seite…")
 		self.ready = True
-		self.updateSkin()
+		self.updateSkin(movetoEnd)
 
-	def updateSkin(self):
+	def updateSkin(self, movetoEnd=False):
 		skinpix = []
 		for menupic in self.menupics:
 			avatarpix = self.handleAvatar(menupic[0])
@@ -745,7 +748,10 @@ class openATVMain(openATVglobals):
 		for idx, menulist in enumerate(self.menutexts):
 			skinlist.append(tuple(menulist + skinpix[idx]))
 		self["menu"].updateList(skinlist)
-		if self.currlink:
+		if movetoEnd:
+			self["menu"].goBottom()
+			self["menu"].goLineUp()
+		elif self.currlink:
 			index = self.menulinks.index(self.currlink) if self.currlink in self.menulinks else 0
 			self["menu"].setCurrentIndex(index)
 		if self.currmode == "menu":
@@ -917,7 +923,7 @@ class openATVMain(openATVglobals):
 			currlink = self.currlink if self.currlink else self.menulinks[self["menu"].getCurrentIndex() - 1]  # else use link of previous entry
 			self.count -= 1
 			link = sub(r'-post\d+.*?#post\d+', "-%s.html" % self.count, currlink)
-			callInThread(self.downloadPage, link, self.localhtml2, self.makeThread)
+			callInThread(self.downloadPage, link, self.localhtml2, self.makeThread, movetoEnd=True)
 
 	def gotoPage(self, number):
 		if self.currmode == "thread":
