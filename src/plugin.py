@@ -48,7 +48,7 @@ class openATVglobals(Screen):
 			group1, group2 = r'\g<1>', r'\g<2>'
 			text = sub(r'\s+', ' ', text)  # remove white spaces
 			text = sub(r'<span style="text-align:center;display:block"><img src=".*?" class="postimage" alt="Bild">', '{Bild}' if remove else '{Bild}\n', text)  # remove embedded pictures
-			stext = r'<span style="text-align:center;display:block"><span style="font-size:.*?">(.*?)</div>'
+			stext = r'<span style=".*?"><span style="font-size:.*?">(.*?)</div>'
 			rtext = search(stext, text)
 			if rtext:
 				rtext = rtext.group(1).replace("</span>", "").strip()
