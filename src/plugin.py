@@ -68,7 +68,6 @@ class openATVglobals(Screen):
 			text = sub(r'<span class="responsive-hide">.*?class="username-coloured">(.*?)</a></strong>.*?</time>', group1, text)  # unwrap userlink
 			text = sub(r'<span class="abbc3_strike" style="text-decoration:line-through">(.*?)</span>', group1, text)  # unwrap strikes
 			text = sub(r'<pre class="nfo".*?block">(.*?)</span></pre>', group1 if remove else f'{group1}\n', text)  # unwrap ASCII info
-			text = sub('<img src=".*?" class="postimage" alt="Bild">', '{Bild}' if remove else '{Bild}', text)  # remove pictures
 			text = sub(r'<table class="pipe-table">.*?</table>', '{Tabelle}' if remove else '{Tabelle}\n', text)  # remove tables
 			text = sub(r'<div class="codebox">.*?</p><pre><code>(.*?)</code></pre></div>', rtext, text)  # remove codeboxes
 			text = sub(r'<ol style="list-style-type:.*?</ol>', '{Auflistung}' if remove else '{Auflistung}\n', text)  # remove decimal and alpha listings)
@@ -81,8 +80,9 @@ class openATVglobals(Screen):
 			text = sub(r'<span style="text-align:center;display:block">(.*?)/align]', group1, text)  # unwrap centered
 			text = sub(r'<ul>.*?</ul>', '{Auflistung}' if remove else '{Auflistung}\n', text)  # remove free listings
 			text = sub(r'<span style="text-decoration:underline">(.*?)</span>', group1, text)  # unwrap underline
-			text = sub(r'<img class="smilies".*?alt="(.*?)".*?">', group1, text)  # unwrap emoicons
+			text = sub('<img src=".*?" class="postimage" alt="Bild">', '{Bild}', text)  # remove pictures
 			text = sub(r'<span class="dropshadow".*?">(.*?)</span>', group1, text)  # unwrap dropshadows
+			text = sub(r'<img class="smilies".*?alt="(.*?)".*?">', group1, text)  # unwrap emoicons
 			text = sub(r'<span style="font-family:.*?">(.*?)</span>', group1, text)  # unwrap fonts
 			text = sub(r'<span class="fadeEffect">(.*?)</span>', group1, text)  # unwrap fadeEffect
 			text = sub(r'<span class="shadow".*?">(.*?)</span>', group1, text)  # unwrap shadows
