@@ -43,65 +43,77 @@ class openATVglobals(Screen):
 	POSTSPERMAIN = 5
 	POSTSPERTHREAD = 20
 
-	def cleanupDescTags(self, text, remove=True):  # remote=True mercilessly cuts the text down to a minimum for MultiContentEntryLines
+	def cleanupDescTags(self, text, singleline=True):  # singleline=True mercilessly cuts the text down to a minimum for MultiContentEntryLines
 		if text:  # ATTENTION: The order must not be changed!
 			group1, group2 = r'\g<1>', r'\g<2>'
-			text = sub(r'\s+', ' ', text)  # remove white spaces
-			text = sub(r'<span style="text-align:center;display:block"><img src=".*?" class="postimage" alt="Bild">', '{Bild}' if remove else '{Bild}\n', text)  # remove embedded pictures
+			text = sub(r'\s+', ' ', text) if singleline else sub(r'\n+', '', text).strip()  # remove white spaces or multipe \n
+			text = sub(r'<span style="text-align:center;display:block"><img src=".*?" class="postimage" alt="Bild">', '{Bild}' if singleline else '{Bild}\n', text)  # remove embedded pictures
 			stext = r'<span style=".*?"><span style="font-size:.*?">(.*?)</div>'
 			rtext = search(stext, text)
 			if rtext:
 				rtext = rtext.group(1).replace("</span>", "").strip()
-				rtext = rtext.replace("<br> ", " ") if remove else rtext.replace("<br> ", "\n")
+				rtext = rtext.replace("<br> ", " ") if singleline else rtext.replace("<br> ", "\n")
 				rtext = sub(r'<span style="text-decoration:underline"><a href="https:.*?" class="postlink">(.*?)</a>', group1, rtext).strip()
 				text = sub(stext, rtext, text)
-			text = text.replace("<br>", "") if remove else text.replace("<br>", "\n")  # necessary for following code
-			text = sub(r'<pre class="abbc3_pre"\s*style=".*?"><span style="text-align:center;display:block">(.*?)</pre><span style="text-align:center;display:block">', group1 if remove else f'{group1}\n', text)  # unwrap pre-formatted
-			rtext = f"Datei '{group1}' {group2}" if remove else f"\nDatei '{group1}'\n{group2}"
+			text = text.replace("<br>", "") if singleline else text.replace("<br>", "\n")  # necessary for following code
+			text = sub(r'<pre class="abbc3_pre"\s*style=".*?"><span style="text-align:center;display:block">(.*?)</pre><span style="text-align:center;display:block">', group1 if singleline else f"{group1}\n", text)  # unwrap pre-formatted
+			rtext = f"Datei '{group1}' {group2}" if singleline else f"\nDatei '{group1}'\n{group2}"
 			text = sub(r'<div class="inline-attachment">.*?href=".*?">(.*?)</a></dt>\s*<dd>(.*?)</dd>\s*</dl>\s*</div>', rtext, text, flags=S).strip()  # unwrap embedded attachments
-			rtext = "{Code}" if remove else "{Code}\n"
-			text = sub(r'<table class="ModTable".*?display:block">(.*?)</span>.*?;display:block">', group1 if remove else f'{group1}\n', text)  # unwrap moderator message
-			text = sub(r'<div class="hidebox hidebox_hidden">.*?"text-align:center;display:block">', '{Versteckt}' if remove else '{Versteckt}\n', text)  # remove hidden texts
-			text = sub(r'<div class="offtopic".*?display:block">(.*?)</span>.*?display:block">', group1 if remove else f'{group1}\n', text)  # unwrap offtopic texts
-			text = sub(r'<div class="abbc3-marquee">.*?display:block">(.*?)</span>.*?display:block">', group1 if remove else f'{group1}\n', text)  # unwrap running text
-			text = sub(r'<div class="spoilwrapper".*?block">.*?</span></div></div>.*?block">', '{Spoiler}' if remove else '{Spoiler}\n', text)  # remove spoilers
+			rtext = "{Code}" if singleline else "{Code}\n"
+			text = sub(r'<table class="ModTable".*?display:block">(.*?)</span>.*?;display:block">', group1 if singleline else f"{group1}\n", text)  # unwrap moderator message
+			text = sub(r'<div class="hidebox hidebox_hidden">.*?"text-align:center;display:block">', '{Versteckt}' if singleline else '{Versteckt}\n', text)  # remove hidden texts
+			text = sub(r'<div class="offtopic".*?display:block">(.*?)</span>.*?display:block">', group1 if singleline else f"{group1}\n", text)  # unwrap offtopic texts
+			text = sub(r'<div class="abbc3-marquee">.*?display:block">(.*?)</span>.*?display:block">', group1 if singleline else f"{group1}\n", text)  # unwrap running text
+			text = sub(r'<div class="spoilwrapper".*?block">.*?</span></div></div>.*?block">', '{Spoiler}' if singleline else '{Spoiler}\n', text)  # remove spoilers
 			text = sub(r'<span class="responsive-hide">.*?class="username-coloured">(.*?)</a></strong>.*?</time>', group1, text)  # unwrap userlink
 			text = sub(r'<span class="abbc3_strike" style="text-decoration:line-through">(.*?)</span>', group1, text)  # unwrap strikes
-			text = sub(r'<pre class="nfo".*?block">(.*?)</span></pre>', group1 if remove else f'{group1}\n', text)  # unwrap ASCII info
-			text = sub(r'<table class="pipe-table">.*?</table>', '{Tabelle}' if remove else '{Tabelle}\n', text)  # remove tables
+			text = sub(r'<pre class="nfo".*?block">(.*?)</span></pre>', group1 if singleline else f"{group1}\n", text)  # unwrap ASCII info
+			text = sub(r'<table class="pipe-table">.*?</table>', '{Tabelle}' if singleline else '{Tabelle}\n', text)  # remove tables
 			text = sub(r'<div class="codebox">.*?</p><pre><code>(.*?)</code></pre></div>', rtext, text)  # remove codeboxes
-			text = sub(r'<ol style="list-style-type:.*?</ol>', '{Auflistung}' if remove else '{Auflistung}\n', text)  # remove decimal and alpha listings)
+			text = sub(r'<ol style="list-style-type:.*?</ol>', '{Auflistung}' if singleline else '{Auflistung}\n', text)  # remove decimal and alpha listings)
 			rtext = f"----- {group1} hat geschrieben: -----{{Zitat Anfang}}"
-			rtext = "{Zitat}" if remove else f"{rtext}{"-" * (125 - len(rtext))}\n{group2}\n{"-" * 120}{{Zitat Ende}}-----\n"
-			text = sub(r'<blockquote cite=".*?"><div><cite><a href=".*?">(.*?)</a>.*?</cite>(.*?)</div></blockquote>', rtext, f'{text}', flags=S)  # unwrap cite blockquotes
-			rtext = "{Zitat}" if remove else f"\n-----{{Zitat Anfang}}{"-" * 117}\n{group1}\n{"-" * 120}{{Zitat Ende}}-----\n"
-			text = sub(r'<span style="text-align:center;display:block"><span style="font-size:.*?">', '', f'{text}</div>', flags=S)  # necessary for some descriptions
+			rtext = "{Zitat}" if singleline else f"{rtext}{'-' * (126 - len(rtext))}\n{group2}\n{'-' * 120}{{Zitat Ende}}-----\n"
+			for idx in range(5):  # in case of recursive quotes
+				text = sub(r'<blockquote cite=".*?"><div><cite><a href=".*?">(.*?)</a>.*?</cite>(.*?)</div></blockquote>', rtext, text, flags=S)  # unwrap cite blockquotes
+			text = sub(r'<span style="text-align:center;display:block"><span style="font-size:.*?">', '', f"{text}</div>", flags=S)  # necessary for some descriptions
+			rtext = "{Zitat}" if singleline else f"\n-----{{Zitat Anfang}}{'-' * 126}\n{group1}\n{'-' * 120}{{Zitat Ende}}-----\n"
 			text = sub(r'<blockquote class="uncited"><div>(.*?)</div></blockquote>', rtext, text)  # unwrap uncite blockquotes
+			text = sub(r'<span style="text-align:center;display:block"><span style="font-size:.*?">', '', f"{text}</div>", flags=S)  # necessary for some descriptions
+			rtext = "{Bild}" if singleline else f"\n{{Bild: {group1}}}\n"
+			text = sub(r'<div class="inline-attachment">\s*<dl class="file">\s*<dt class="attach-image">.*?</dt>\s*<dd>(.*?)</dd>\s*</dl>\s*</div>', rtext, text, flags=S)  # unwrap pictures
+			text = sub(r'<img alt="(.*?)" class="emoji smilies" draggable="false" src=".*?">', '', text)  # unwrap emoicons
 			text = sub(r'<span style="text-align:center;display:block">(.*?)/align]', group1, text)  # unwrap centered
-			text = sub(r'<ul>.*?</ul>', '{Auflistung}' if remove else '{Auflistung}\n', text)  # remove free listings
+			text = sub(r'<ul>.*?</ul>', '{Auflistung}' if singleline else '{Auflistung}\n', text)  # remove free listings
+			text = sub(r'<span style="text-align:center;display:block">.*?</span>', "", text)  # remove picture aligns
 			text = sub(r'<span style="text-decoration:underline">(.*?)</span>', group1, text)  # unwrap underline
-			text = sub('<img src=".*?" class="postimage" alt="Bild">', '{Bild}', text)  # remove pictures
+			text = sub(r'<img src=".*?" class="postimage" alt="Bild">', '{Bild}', text)  # remove pictures
 			text = sub(r'<span class="dropshadow".*?">(.*?)</span>', group1, text)  # unwrap dropshadows
 			text = sub(r'<img class="smilies".*?alt="(.*?)".*?">', group1, text)  # unwrap emoicons
 			text = sub(r'<span style="font-family:.*?">(.*?)</span>', group1, text)  # unwrap fonts
 			text = sub(r'<span class="fadeEffect">(.*?)</span>', group1, text)  # unwrap fadeEffect
 			text = sub(r'<span class="shadow".*?">(.*?)</span>', group1, text)  # unwrap shadows
 			text = sub(r'<a href="./viewtopic.php.*?">(.*)</a>', group1, text)  # unwrap topics
-			text = sub(r'<span style="color:.*?">(.*?)</span>', group1, text)  # unwrap colors
 			text = sub(r'<span class="glow".*?">(.*?)</span>', group1, text)  # unwrap glows
 			text = sub(r'<span class="blur".*?>(.*?)</span>', group1, text)  # unwrap blurs
 			text = sub(r'<bdo dir="rtl">(.*?)</bdo>', group1, text)  # unwrap direction change
-			text = text.replace("</span>", "")  # necessary for following code
-			text = sub(r'<div style="float:.*?display:block">(.*?)</div><span style="text-align:center;display:block">', group1 if remove else f'{group1}\n', text)  # unwrap paddings
+			text = sub(r'<strong class="text-strong"><span style="color:#.*?">(.*?)</strong>', group1, text)  # unwrap colored bolds
 			text = sub(r'<a href=".*?" class="postlink">(.*?)</a>', f"{{Link: {group1}}}", text)  # remove links
-			text = sub(r'<strong class="text-strong">(.*?)</strong>', group1, text)  # unwrap bold
+			text = sub(r'<span style="color:.*?"><strong class="text-strong">(.*?)<strong class="text-strong">.*?</strong>.*?</strong>', group1, text, flags=S)  # unwrap colored bolds
+			text = sub(r'<strong class="text-strong">(.*?)</strong>', group1, text)  # unwrap bolds
+			text = sub(r'<span style="color:.*?">(.*?)</span>', group1, text)  # unwrap colors
+			text = sub(r'<a href=".*?" class="postlink">(.*?)</a>', f"{{Link: {group1}}}", text)  # remove links
 			text = sub(r'<em class="text-italics">(.*?)</em>', group1, text)  # unwrap italic
 			text = sub(r'<em class="mention">(.*?)</em>', group1, text)  # unwrap mentionned
+			text = sub(r'<div class="notice">.*?</div>', '', text)  # remove notices
 			text = sub(r'<sup>(.*?)</sup>', group1, text)  # unwrap superscripts
 			text = sub(r'<sub>(.*?)</sub>', group1, text)  # unwrap subscripts
-			text = text.replace("</div>", "").strip()
+			text = sub(r'<em>.*?</em>', '', text)  # remove change reason
+			text = sub(r'<strong>.*?</strong>', '', text)  # change text
+			text = text.replace("</span>", "")  # necessary for following code
+			text = sub(r'<div style="float:.*?display:block">(.*?)</div><span style="text-align:center;display:block">', group1 if singleline else f"{group1}\n", text)  # unwrap paddings
+			text = text.replace("</div>", "\n").replace("</blockquote>", "").strip()  # cleanup remaining scraps
 			text = self.cleanupUserTags(text)
-			return text if remove else f"{text}\n"
+			return text if singleline else f"{text}\n"
 		return ""
 
 	def cleanupUserTags(self, text):
@@ -122,10 +134,10 @@ class openATVglobals(Screen):
 		text = search(regex, text, flags=S) if flag_S else search(regex, text)
 		return (text.group(1), text.group(2)) if text else (fallback1, fallback2)
 
-	def downloadPage(self, link, success=None, index=None):
-		link = link.encode("ascii", "xmlcharrefreplace").decode().replace(" ", "%20").replace("\n", "")
+	def downloadPage(self, url, success=None, index=None):
+		url = url.encode("ascii", "xmlcharrefreplace").decode().replace(" ", "%20").replace("\n", "")
 		try:
-			response = get(link.encode("utf-8"))
+			response = get(url.encode("utf-8"))
 			response.raise_for_status()
 			content = response.content
 			if success:
@@ -278,8 +290,8 @@ class openATVFav(openATVglobals):
 							self.count += 1
 							favline = line.split("\t")
 							favname = favline[0].strip()
-							link = favline[1].strip()
-							self.favlist.append((favname, link))
+							url = favline[1].strip()
+							self.favlist.append((favname, url))
 							menutexts.append(favname)
 			except OSError as error:
 				self.session.open(MessageBox, f"Favoriten konnten nicht gelesen werden:\n'{error}'", type=MessageBox.TYPE_INFO, timeout=2, close_on_any_key=True)
@@ -405,11 +417,11 @@ class openATVPost(openATVglobals):
 		self.posttitle = posttitle
 		self.postid = postid
 		self.postnr = postnr
-		desc = self.cleanupDescTags(fulldesc, remove=False)
+		desc = self.cleanupDescTags(fulldesc, singleline=False)
 		self.handleIcon(self["avatar"], avatarlink)
 		if userrank:
 			self.handleIcon(self["userrank"], userrank)
-		self.showPic(self["online"], join(self.PLUGINPATH, f"{"icons/online" if online == "online" else "icons/offline"}_{self.RESOLUTION}.png"), scale=False)
+		self.showPic(self["online"], join(self.PLUGINPATH, f"{'icons/online' if online else 'icons/offline'}_{self.RESOLUTION}.png"), scale=False)
 		self["headline"].setText(posttitle)
 		self["postid"].setText(f"ID: {postid}")
 		self["postnr"].setText(postnr)
@@ -423,20 +435,20 @@ class openATVPost(openATVglobals):
 		self["datum"].setText(f"Beitrag von {date} Uhr")
 		self["textpage"].setText(desc)
 
-	def handleIcon(self, widget, link):
+	def handleIcon(self, widget, url):
 		if widget:
-			filename = join(self.AVATARPATH, f"{link[link.rfind("/") + 1:].split(".")[0]}.*") if link else join(self.PLUGINPATH, "icons/unknown.png")
+			filename = join(self.AVATARPATH, f"{url[url.rfind('/') + 1:].split('.')[0]}.*") if url else join(self.PLUGINPATH, "icons/unknown.png")
 			picfiles = glob(filename)  # possibly the file name had to be renamed according to the correct image type
 			if picfiles and exists(picfiles[0]):  # use first hit found
 				self.showPic(widget, picfiles[0])
 			else:
-				callInThread(self.iconDL, widget, link)
+				callInThread(self.iconDL, widget, url)
 
-	def iconDL(self, widget, link):
-		link = link.encode("ascii", "xmlcharrefreplace").decode().replace(" ", "%20").replace("\n", "")
-		filename = join(self.AVATARPATH, link[link.rfind("/") + 1:])
+	def iconDL(self, widget, url):
+		url = url.encode("ascii", "xmlcharrefreplace").decode().replace(" ", "%20").replace("\n", "")
+		filename = join(self.AVATARPATH, url[url.rfind("/") + 1:])
 		try:
-			response = get(link.encode("utf-8"))
+			response = get(url.encode("utf-8"))
 			response.raise_for_status()
 			content = response.content
 			response.close()
@@ -465,7 +477,7 @@ class openATVPost(openATVglobals):
 		favname = f"POST #{self.postnr} von '{self.posttitle}'"
 		favlink = f"{self.BASEURL}/viewtopic.php?p={self.postid}#p{self.postid}"  # postlink, e.g. https://www.opena.tv/viewtopic.php?p=570564#p570564
 		if self.favoriteExists(self.session, favname, favlink):
-			self.session.open(MessageBox, f"ABBRUCH!\n\n{favname}'\n\nist bereits in den Favoriten vorhanden.\n", type=MessageBox.TYPE_ERROR, timeout=5, close_on_any_key=True)
+			self.session.open(MessageBox, f"ABBRUCH!\n\n'{favname}'\n\nist bereits in den Favoriten vorhanden.\n", type=MessageBox.TYPE_ERROR, timeout=5, close_on_any_key=True)
 		else:
 			self.session.openWithCallback(boundFunction(self.red_return, favname, favlink), MessageBox, f"'{favname}'\n\nzu den Favoriten hinzufügen?\n", MessageBox.TYPE_YESNO, timeout=30)
 
@@ -658,7 +670,7 @@ class openATVMain(openATVglobals):
 				startpos = output.find('<ul class="topiclist topics collapsible">')
 				endpos = output.find('">openATV Board</a></div></dt>')
 				cutout = unescape(output[startpos:endpos])
-				for post in split(r'<li class="row bg', cutout, flags=S)[1:-1]:
+				for post in split(r'<li class="row bg', cutout, flags=S)[1:]:
 					username = self.cleanupUserTags(self.searchOneValue(r'class="usernam.*?">(.*?)</', post, ""))
 					userlist.append(username)
 					avatar, online = None, False  # not available on starting page
@@ -678,8 +690,8 @@ class openATVMain(openATVglobals):
 					if answers:
 						stats.append(f"{answers} Antwort(en)")
 					stats = ", ".join(stats)
-					link = self.searchOneValue(r'<div class="list-inner">\s*<a href="./(.*?)" class="', post, "")  # e.g. viewtopic.php?t=66622&sid=a6b61343ae1c45fcd16fb8a172e1fd7f
-					threadid = parse_qs(urlparse(link).query)['t'][0]
+					url = self.searchOneValue(r'<div class="list-inner">\s*<a href="./(.*?)" class="', post, "")  # e.g. viewtopic.php?t=66622&sid=a6b61343ae1c45fcd16fb8a172e1fd7f
+					threadid = parse_qs(urlparse(url).query)['t'][0]
 					self.threadlinks.append(f"{self.BASEURL}viewtopic.php?t={threadid}&start={answers // self.POSTSPERTHREAD * self.POSTSPERTHREAD}" if threadid else "")
 					self.maintexts.append([title, forum, desc, date, username, stats])
 					self.menupics.append([avatar, online])
@@ -688,7 +700,7 @@ class openATVMain(openATVglobals):
 		userlist = f"{userlist[:200]}…" if len(userlist) > 200 or userlist.endswith(",") else userlist
 		self.threadlinks.append("")
 		self.maintexts.append(["beteiligte Benutzer", userlist, "", "", "", ""])
-		self.menupics.append(["icons/user_stat.png", False])
+		self.menupics.append(["./icons/user_stat.png", False])
 		self["waiting"].stopBlinking()
 		self["headline"].setText("aktuelle Themen")
 		self.ready = True
@@ -717,6 +729,7 @@ class openATVMain(openATVglobals):
 			currpage, maxpages = self.searchTwoValues(r'Seite <strong>(.*?)</strong> von <strong>(.*?)</strong>', pagination, "1", "1", flag_S=True)
 			self.currpage, self.maxpages = int(currpage), int(maxpages)
 			posttitle = self.searchOneValue(r'<title>(.*?)</title>', cutout, "{kein Titel gefunden}").split(" - openATV Forum")[0]
+			posttitle = posttitle[:posttitle.find(" - Seite")]
 			self["waiting"].stopBlinking()
 			self["headline"].setText(f"THEMA: {posttitle}")
 			self["pagecount"].setText(f"Seite {currpage} von {maxpages}")
@@ -724,33 +737,37 @@ class openATVMain(openATVglobals):
 				postid = self.searchOneValue(r'id="profile(.*?)"', post, "{n/v}")
 				postnr = self.searchOneValue(r'return false;">(.*?)</a></span>', post, "")
 				online = self.searchOneValue(r'<div id=".*?" class="post has-profile bg.*? (.*?)">', post, "") == True
-				online = "online" if online else "offline"
 				avatarlink = self.searchOneValue(r'<img class="avatar" src="./(.*?)"', post, "")
 				avatarlink = f"{self.BASEURL}{avatarlink}" if avatarlink else None
-				self.handleAvatar(avatarlink)
+				self.handleAvatar(avatarlink)  # trigger download of Avatar
 				username = self.cleanupUserTags(self.searchOneValue(r'class="usernam.*?">(.*?)</', post, ""))
 				if "gelöschter benutzer" in username.lower():
 					username = "{gelöscht}"
 				usertitle, userrank = self.searchTwoValues(r'<dd class="profile-rank">(.*?)<br /><img src="./(.*?)"', post, "{gelöscht}", None)
 				userrank = f"{self.BASEURL}{userrank}"
-				residence = self.searchOneValue(r'<strong>Wohnort:</strong>(.*?)</dd>', post, ' {kein Wohnort genannt}')
-				postcnt = f"{self.searchOneValue(r'Beiträge:</strong> <a href=".*?">(.*?)</a>', post, "0")} Beiträge"
+				residence = self.searchOneValue(r'<strong>Wohnort:</strong>(.*?)</dd>', post, ' {kein Wohnort benannt}')
+				postcnt = "%s Beiträge" % self.searchOneValue(r'Beiträge:</strong> <a href=".*?">(.*?)</a>', post, "0")
 				thxgiven = self.searchOneValue(r'/true.*?">(.*?)</a></dd>', post, "keine")
 				thxreceived = self.searchOneValue(r'/false.*?">(.*?)</a></dd>', post, "keine")
 				registered = self.searchOneValue(r'<strong>Registriert:</strong>(.*?)</dd>', post, "{unbekannt}").replace("  ", " ")
 				date = self.searchOneValue(r'<time datetime=".*?">(.*?)</time>', post, "{kein Datum/Uhrzeit}")
+				signature = self.searchOneValue(r'<div id=".*?" class="signature">(.*?)\s*</div>', post, "", flag_S=True)
 				fulldesc = self.searchOneValue(r'<div class="content">(.*?)\s*<div id=', post, "{keine Beschreibung}", flag_S=True)
+				cngreason = self.searchOneValue(r'<em>(.*?)</em>', post, "kein Änderungsgrund angegeben")
+				cnguser, cngdate = self.searchTwoValues(r'<div class="notice">\s*Zuletzt geändert von <a href=".*?">(.*?)</a>(.*?)</div>', post, "", "", flag_S=True)
+				changes = f"Zuletzt geändert von {cnguser.strip()} {cngdate.replace("<br />", "").strip()}<br>Grund: {cngreason.strip()}" if cnguser and cngdate else ""
+				fulldesc += f"{signature} {changes}"
 				desc = self.cleanupDescTags(f"{fulldesc}\n")
-				desc = f"{postnr}: {desc[:270]}{desc[270:desc.find(" ", 270)]}…" if len(desc) > 270 else f"{postnr}: {desc}"
-				userlist.append((username))
+				desc = f"{postnr}: {desc[:270]}{desc[270:desc.find(' ', 270)]}…" if len(desc) > 270 else f"{postnr}: {desc}"
 				self.threadtexts.append([desc, date, username, postcnt])
 				self.threadpics.append([avatarlink, online])
 				self.postlist.append((posttitle, postid, postnr, avatarlink, online, username, usertitle, userrank, residence, postcnt, thxgiven, thxreceived, registered, date, fulldesc))
+				userlist.append((username))
 			userlist = list(dict.fromkeys(userlist))  # remove dupes
 			userlist = ", ".join(userlist)
 			userlist = f"beteiligte Benutzer\n{userlist[:200]}…" if len(userlist) > 200 or userlist.endswith(",") else f"beteiligte Benutzer\n{userlist}"
 			self.threadtexts.append([userlist, "", "", ""])
-			self.threadpics.append(["icons/user_stat.png", False])
+			self.threadpics.append(["./icons/user_stat.png", False])
 			self.ready = True
 			self.updateSkin()
 			if movetoend:
@@ -760,9 +777,9 @@ class openATVMain(openATVglobals):
 	def updateSkin(self):
 		skinpix = []
 		for menupic in self.menupics if self.currmode == "menu" else self.threadpics:
-			if self.currmode == "thread" and menupic[1]:
+			if self.currmode == "thread":
 				avatarpix = self.handleAvatar(menupic[0])
-				statuspix = self.online if "online" in menupic[1] else self.offline
+				statuspix = self.online if menupic[1] else self.offline
 			else:
 				avatarpix = None
 				statuspix = None
@@ -782,25 +799,28 @@ class openATVMain(openATVglobals):
 			self["key_page"].setText("")
 			self["key_keypad"].setText("")
 
-	def handleAvatar(self, link):
-		filename = join(self.AVATARPATH, f"{link[link.rfind("?avatar=") + 8:].split(".")[0]}.*") if link else join(self.PLUGINPATH, "icons/unknown.png")
-		picfile = glob(filename)  # possibly the file name had to be renamed according to the correct image type
-		if picfile and exists(picfile[0]):  # use first hit found
-			avatarpix = LoadPixmap(cached=True, path=picfile[0])
-			if link in self.avatarDLlist:
-				self.avatarDLlist.remove(link)
+	def handleAvatar(self, url):
+		if url and url.startswith("./"):  # in case it's an plugin avatar
+			avatarpix = LoadPixmap(cached=True, path=join(self.PLUGINPATH, url.replace("./", "")))
 		else:
-			avatarpix = None
-			if link not in self.avatarDLlist:  # avoid multiple threaded downloads of equal avatars
-				self.avatarDLlist.append(link)
-				callInThread(self.downloadAvatar, link)
+			filename = join(self.AVATARPATH, f"{url[url.rfind('?avatar=') + 8:].split('.')[0]}.*") if url else join(self.PLUGINPATH, "icons/unknown.png")
+			picfile = glob(filename)  # possibly the file name had to be renamed according to the correct image type
+			if picfile and exists(picfile[0]):  # use first hit found
+				avatarpix = LoadPixmap(cached=True, path=picfile[0])
+				if url in self.avatarDLlist:
+					self.avatarDLlist.remove(url)
+			else:
+				avatarpix = None
+				if url not in self.avatarDLlist:  # avoid multiple threaded downloads of equal avatars
+					self.avatarDLlist.append(url)
+					callInThread(self.downloadAvatar, url)
 		return avatarpix
 
-	def downloadAvatar(self, link):
-		link = link.encode("ascii", "xmlcharrefreplace").decode().replace(" ", "%20").replace("\n", "")
-		file = join(self.AVATARPATH, link[link.rfind("?avatar=") + 8:])
+	def downloadAvatar(self, url):
+		url = url.encode("ascii", "xmlcharrefreplace").decode().replace(" ", "%20").replace("\n", "")
+		file = join(self.AVATARPATH, url[url.rfind("?avatar=") + 8:])
 		try:
-			response = get(link.encode("utf-8"))
+			response = get(url.encode("utf-8"))
 			response.raise_for_status()
 			with open(file, "wb") as f:
 				f.write(response.content)
@@ -909,7 +929,7 @@ class openATVMain(openATVglobals):
 			self.keyPageDown()
 		elif self.currmode == "thread" and self.currpage < self.maxpages:
 			self.currpage += 1
-			threadlink = self.threadlink if self.threadlink else self.threadlinks[self["menu"].getCurrentIndex() - 1]  # use link of previous entry when 'beteiligte Benutzer'
+			threadlink = self.threadlink if self.threadlink else self.threadlinks[self["menu"].getCurrentIndex() - 1]  # use url of previous entry when 'beteiligte Benutzer'
 			threadid = parse_qs(urlparse(threadlink).query)['t'][0]
 			if threadid:
 				self.threadlink = f"{self.BASEURL}viewtopic.php?t={threadid}&start={(self.currpage - 1) * self.POSTSPERTHREAD}"
@@ -920,7 +940,7 @@ class openATVMain(openATVglobals):
 			self.keyPageUp()
 		elif self.currmode == "thread" and self.currpage > 1:
 			self.currpage -= 1
-			threadlink = self.threadlink if self.threadlink else self.threadlinks[self["menu"].getCurrentIndex() - 1]  # use link of previous entry when 'beteiligte Benutzer'
+			threadlink = self.threadlink if self.threadlink else self.threadlinks[self["menu"].getCurrentIndex() - 1]  # use url of previous entry when 'beteiligte Benutzer'
 			threadid = parse_qs(urlparse(threadlink).query)['t'][0]
 			if threadid:
 				self.threadlink = f"{self.BASEURL}viewtopic.php?t={threadid}&start={(self.currpage - 1) * self.POSTSPERTHREAD}"
