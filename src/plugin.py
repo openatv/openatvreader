@@ -437,7 +437,7 @@ class openATVPost(openATVglobals):
 
 	def handleIcon(self, widget, url):
 		if widget:
-			filename = join(self.AVATARPATH, f"{url[url.rfind('/') + 1:].split('.')[0]}.*") if url else join(self.PLUGINPATH, "icons/unknown.png")
+			filename = join(self.AVATARPATH, f"{url[url.rfind('?avatar=') + 8:].split('.')[0]}.*") if url else join(self.PLUGINPATH, "icons/unknown.png")
 			picfiles = glob(filename)  # possibly the file name had to be renamed according to the correct image type
 			if picfiles and exists(picfiles[0]):  # use first hit found
 				self.showPic(widget, picfiles[0])
@@ -804,9 +804,9 @@ class openATVMain(openATVglobals):
 			avatarpix = LoadPixmap(cached=True, path=join(self.PLUGINPATH, url.replace("./", "")))
 		else:
 			filename = join(self.AVATARPATH, f"{url[url.rfind('?avatar=') + 8:].split('.')[0]}.*") if url else join(self.PLUGINPATH, "icons/unknown.png")
-			picfile = glob(filename)  # possibly the file name had to be renamed according to the correct image type
-			if picfile and exists(picfile[0]):  # use first hit found
-				avatarpix = LoadPixmap(cached=True, path=picfile[0])
+			picfiles = glob(filename)  # possibly the file name had to be renamed according to the correct image type
+			if picfiles and exists(picfiles[0]):  # use first hit found
+				avatarpix = LoadPixmap(cached=True, path=picfiles[0])
 				if url in self.avatarDLlist:
 					self.avatarDLlist.remove(url)
 			else:
