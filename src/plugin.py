@@ -42,6 +42,7 @@ class openATVglobals(Screen):
 	RESOLUTION = "fHD" if getDesktop(0).size().width() > 1300 else "HD"
 	POSTSPERMAIN = 5
 	POSTSPERTHREAD = 20
+	MODULE_NAME = __name__.split(".")[-2]
 
 	def cleanupDescTags(self, text, singleline=True):  # singleline=True mercilessly cuts the text down to a minimum for MultiContentEntryLines
 		if text:  # ATTENTION: The order must not be changed!
@@ -254,8 +255,10 @@ class openATVFav(openATVglobals):
 				}
 			</convert>
 		</widget>
-		<ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_red_HD.png" position="13,500" size="26,38" alphatest="blend" />
-		<widget source="key_red" render="Label" position="36,500" size="180,38" zPosition="1" valign="center" font="Regular;18" halign="left" foregroundColor="#00b3b3b3" backgroundColor="#1A0F0F0F" transparent="1" />
+		<ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_red_HD.png" position="14,636" size="26,38" alphatest="blend" />
+		<ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_blue_HD.png" position="644,636" size="26,38" alphatest="blend" />
+		<widget source="key_red" render="Label" position="36,636" size="180,38" zPosition="1" valign="center" font="Regular;18" halign="left" foregroundColor="#00b3b3b3" backgroundColor="#1A0F0F0F" transparent="1" />
+		<widget source="key_blue" render="Label" position="666,636" size="180,38" zPosition="1" valign="center" font="Regular;18" halign="left" foregroundColor="#00b3b3b3" backgroundColor="#1A0F0F0F" transparent="1" />
 	</screen>"""
 
 	def __init__(self, session):
@@ -268,14 +271,15 @@ class openATVFav(openATVglobals):
 		self["headline"] = StaticText("Favoriten")
 		self["favmenu"] = List([])
 		self["key_red"] = StaticText("Favorit entfernen")
-		self["key_yellow"] = StaticText("Favoriten aufrufen")
+		self["key_blue"] = StaticText("Startseite")
 		self["actions"] = ActionMap(["OkCancelActions",
 									"DirectionActions",
 									"ColorActions"], {"ok": self.keyOk,
 														"cancel": self.close,
 														"down": self.keyPageDown,
 														"up": self.keyPageUp,
-														"red": self.keyRed
+														"red": self.keyRed,
+														"blue": self.keyBlue
 														}, -1)
 		self.onLayoutFinish.append(self.makeFav)
 
@@ -315,6 +319,9 @@ class openATVFav(openATVglobals):
 			favlink = self.favlist[curridx][1]
 			if favname and favlink:
 				self.session.openWithCallback(boundFunction(self.red_return, favname, favlink), MessageBox, f"'{favname}'\n\naus den Favoriten entfernen?\n", MessageBox.TYPE_YESNO, timeout=30, default=False)
+
+	def keyBlue(self):
+		self.close(True)
 
 	def red_return(self, favname, favlink, answer):
 		if answer is True:
@@ -364,8 +371,12 @@ class openATVPost(openATVglobals):
 		<widget source="datum" render="Label" position="866,133" size="333,28" font="Regular;21" halign="right" valign="center" foregroundColor="#005fb300" transparent="1" zPosition="1" />
 		<ePixmap position="13,166" size="1200,1" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/line_HD.png" zPosition="1" />
 		<widget name="textpage" position="26,186" size="1173,433" font="Regular;24" halign="left" foregroundColor="white" scrollbarMode="showOnDemand" transparent="1" zPosition="1" />
-		<ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_red_HD.png" position="13,636" size="26,38" alphatest="blend" />
+		<ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_red_HD.png" position="14,636" size="26,38" alphatest="blend" />
+		<ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_yellow_HD.png" position="434,636" size="26,38" alphatest="blend" />
+		<ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_blue_HD.png" position="644,636" size="26,38" alphatest="blend" />
 		<widget source="key_red" render="Label" position="36,636" size="180,38" zPosition="1" valign="center" font="Regular;18" halign="left" foregroundColor="#00b3b3b3" backgroundColor="#1A0F0F0F" transparent="1" />
+		<widget source="key_blue" render="Label" position="666,636" size="180,38" zPosition="1" valign="center" font="Regular;18" halign="left" foregroundColor="#00b3b3b3" backgroundColor="#1A0F0F0F" transparent="1" />
+		<widget source="key_blue" render="Label" position="666,636" size="180,38" zPosition="1" valign="center" font="Regular;18" halign="left" foregroundColor="#00b3b3b3" backgroundColor="#1A0F0F0F" transparent="1" />
 	</screen>"""
 
 	def __init__(self, session, postdetails, favmenu):
@@ -395,6 +406,7 @@ class openATVPost(openATVglobals):
 		self["textpage"] = ScrollLabel()
 		self["key_red"] = StaticText("Favorit hinzufügen")
 		self["key_yellow"] = StaticText("Favoriten aufrufen")
+		self["key_blue"] = StaticText("Startseite")
 		self["NumberActions"] = ActionMap(["NumberActions",
 												"OkCancelActions",
 												"DirectionActions",
@@ -407,8 +419,9 @@ class openATVPost(openATVglobals):
 																	"left": self.keyPageUp,
 																	"nextBouquet": self.keyPageDown,
 																	"prevBouquet": self.keyPageUp,
+																	"red": self.keyRed,
 																	"yellow": self.keyYellow,
-																	"red": self.keyRed
+																	"blue": self.keyBlue
 																	}, -1)
 		self.onLayoutFinish.append(self.makePost)
 
@@ -465,13 +478,19 @@ class openATVPost(openATVglobals):
 			self.downloadError(error)
 
 	def downloadError(self, error):
-		self.session.open(MessageBox, f"Der opena.tv Server ist zur Zeit nicht erreichbar.\n{error}", MessageBox.TYPE_INFO, timeout=30, close_on_any_key=True)
+		errormsg = f"Der opena.tv Server ist zur Zeit nicht erreichbar.\n{error}"
+		print(f"[{self.MODULE_NAME}] ERROR in module 'downloadError': {errormsg}!")
+		self.session.open(MessageBox, errormsg, MessageBox.TYPE_INFO, timeout=30, close_on_any_key=True)
 
 	def keyYellow(self):
 		if self.favmenu:
 			self.session.open(MessageBox, "Dieses Fenster wurde bereits als Favorit geöffnet!\nUm auf die Favoritenliste zurückzukommen, bitte '2x Verlassen/Exit' drücken!\n", type=MessageBox.TYPE_INFO, timeout=5, close_on_any_key=True)
 		else:
-			self.session.open(openATVFav)
+			self.session.openWithCallback(self.keyYellow_return, openATVFav)
+
+	def keyYellow_return(self, home=False):
+		if home:
+			self.close(True)
 
 	def keyRed(self):
 		favname = f"POST #{self.postnr} von '{self.posttitle}'"
@@ -480,6 +499,9 @@ class openATVPost(openATVglobals):
 			self.session.open(MessageBox, f"ABBRUCH!\n\n'{favname}'\n\nist bereits in den Favoriten vorhanden.\n", type=MessageBox.TYPE_ERROR, timeout=5, close_on_any_key=True)
 		else:
 			self.session.openWithCallback(boundFunction(self.red_return, favname, favlink), MessageBox, f"'{favname}'\n\nzu den Favoriten hinzufügen?\n", MessageBox.TYPE_YESNO, timeout=30)
+
+	def keyBlue(self):
+		self.close(True)
 
 	def red_return(self, favname, favlink, answer):
 		if answer is True:
@@ -545,12 +567,14 @@ class openATVMain(openATVglobals):
 			</convert>
 		</widget>
 		<ePixmap position="13,630" size="1200,1" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/line_HD.png" zPosition="1" />
-		<ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_red_HD.png" position="13,636" size="26,38" alphatest="blend" />
-		<ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_green_HD.png" position="223,636" size="26,38" alphatest="blend" />
-		<ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_yellow_HD.png" position="433,636" size="26,38" alphatest="blend" />
+		<ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_red_HD.png" position="14,636" size="26,38" alphatest="blend" />
+		<ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_green_HD.png" position="224,636" size="26,38" alphatest="blend" />
+		<ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_yellow_HD.png" position="434,636" size="26,38" alphatest="blend" />
+		<ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_blue_HD.png" position="644,636" size="26,38" alphatest="blend" />
 		<widget source="key_red" render="Label" position="36,636" size="180,38" zPosition="1" valign="center" font="Regular;18" halign="left" foregroundColor="#00b3b3b3" backgroundColor="#1A0F0F0F" transparent="1" />
 		<widget source="key_green" render="Label" position="246,636" size="180,38" zPosition="1" valign="center" font="Regular;18" halign="left" foregroundColor="#00b3b3b3" backgroundColor="#1A0F0F0F" transparent="1" />
 		<widget source="key_yellow" render="Label" position="456,636" size="180,38" zPosition="1" valign="center" font="Regular;18" halign="left" foregroundColor="#00b3b3b3" backgroundColor="#1A0F0F0F" transparent="1" />
+		<widget source="key_blue" render="Label" position="666,636" size="180,38" zPosition="1" valign="center" font="Regular;18" halign="left" foregroundColor="#00b3b3b3" backgroundColor="#1A0F0F0F" transparent="1" />
 		<widget name="button_page" position="823,646" size="43,20" alphatest="blend" zPosition="1" />
 		<widget source="key_page" render="Label" position="873,636" size="200,38" font="Regular;18" foregroundColor="grey" backgroundColor="#1A0F0F0F" transparent="1" halign="left" valign="center" />
 		<widget name="button_keypad" position="1026,643" size="35,25" alphatest="blend" zPosition="1" />
@@ -590,6 +614,7 @@ class openATVMain(openATVglobals):
 		self["key_red"] = StaticText("Favorit hinzufügen")
 		self["key_green"] = StaticText("Alles aktualisieren")
 		self["key_yellow"] = StaticText()
+		self["key_blue"] = StaticText()
 		self["pagecount"] = StaticText()
 		self["key_page"] = StaticText()
 		self["key_keypad"] = StaticText()
@@ -606,6 +631,7 @@ class openATVMain(openATVglobals):
 																	"red": self.keyRed,
 																	"green": self.keyGreen,
 																	"yellow": self.keyYellow,
+																	"blue": self.keyBlue,
 																	"up": self.keyUp,
 																	"down": self.keyDown,
 																	"right": self.keyPageDown,
@@ -656,6 +682,7 @@ class openATVMain(openATVglobals):
 		self["waiting"].show()
 		self["headline"].setText("")
 		self["pagecount"].setText("")
+		self["key_blue"].setText("")
 		self.currmode = "menu"
 		self.oldmenuindex = 0
 		self.menupics = []
@@ -716,6 +743,7 @@ class openATVMain(openATVglobals):
 		self["waiting"].startBlinking()
 		self["waiting"].show()
 		self["headline"].setText("")
+		self["key_blue"].setText("Startmenu")
 		self.ready = False
 		userlist = []
 		self.postlist = []
@@ -806,7 +834,11 @@ class openATVMain(openATVglobals):
 			filename = join(self.AVATARPATH, f"{url[url.rfind('?avatar=') + 8:].split('.')[0]}.*") if url else join(self.PLUGINPATH, "icons/unknown.png")
 			picfiles = glob(filename)  # possibly the file name had to be renamed according to the correct image type
 			if picfiles and exists(picfiles[0]):  # use first hit found
-				avatarpix = LoadPixmap(cached=True, path=picfiles[0])
+				avatarpix = None
+				try:
+					avatarpix = LoadPixmap(cached=True, path=picfiles[0])
+				except Exception as error:
+					print(f"[{self.MODULE_NAME}] ERROR in module 'handleAvatar': {error}!")
 				if url in self.avatarDLlist:
 					self.avatarDLlist.remove(url)
 			else:
@@ -818,7 +850,7 @@ class openATVMain(openATVglobals):
 
 	def downloadAvatar(self, url):
 		url = url.encode("ascii", "xmlcharrefreplace").decode().replace(" ", "%20").replace("\n", "")
-		file = join(self.AVATARPATH, url[url.rfind("?avatar=") + 8:])
+		file = join(self.AVATARPATH, url[url.rfind("?avatar=") + 8:]).replace("jpeg", "jpg")
 		try:
 			response = get(url.encode("utf-8"))
 			response.raise_for_status()
@@ -834,7 +866,9 @@ class openATVMain(openATVglobals):
 			self.downloadError(error)
 
 	def downloadError(self, error):
-		self.session.open(MessageBox, f"Der opena.tv Server ist zur Zeit nicht erreichbar.\n{error}", MessageBox.TYPE_INFO, timeout=30, close_on_any_key=True)
+		errormsg = f"Der opena.tv Server ist zur Zeit nicht erreichbar.\n{error}"
+		print(f"[{self.MODULE_NAME}] ERROR in module 'downloadError': {errormsg}!")
+		self.session.open(MessageBox, errormsg, MessageBox.TYPE_INFO, timeout=30, close_on_any_key=True)
 
 	def keyOk(self):
 		current = self["menu"].getCurrentIndex()
@@ -847,7 +881,11 @@ class openATVMain(openATVglobals):
 			if current < len(self.postlist):
 				postdetails = self.postlist[current]
 				if postdetails:
-					self.session.open(openATVPost, postdetails, self.favmenu)
+					self.session.openWithCallback(self.Ok_return, openATVPost, postdetails, self.favmenu)
+
+	def Ok_return(self, home=False):
+		if home:
+			self.switchToMenuview()
 
 	def keyExit(self):
 		if self.currmode == "menu":
@@ -857,13 +895,19 @@ class openATVMain(openATVglobals):
 		if self.currmode == "thread":
 			if self.favmenu:
 				self.close()
-			else:  # switch to existing 'menu' view
-				self.currmode = "menu"
-				self["menu"].style = "default"
-				self["headline"].setText("aktuelle Themen")
-				self["pagecount"].setText("")
-				self.updateSkin()
-				self["menu"].setCurrentIndex(self.oldmenuindex)
+			else:
+				self.switchToMenuview()
+
+	def keyRed(self):
+		favname, favlink = self.makeFavdata()
+		if self.favoriteExists(self.session, favname, favlink):
+			self.session.open(MessageBox, f"ABBRUCH!\n\n'{favname}'\n\nist bereits in den Favoriten vorhanden.\n", type=MessageBox.TYPE_ERROR, timeout=5, close_on_any_key=True)
+		else:
+			self.session.openWithCallback(boundFunction(self.red_return, favname, favlink), MessageBox, f"'{favname}'\n\nzu den Favoriten hinzufügen?\n", MessageBox.TYPE_YESNO, timeout=30)
+
+	def red_return(self, favname, favlink, answer):
+		if answer is True:
+			self.writeFavorite(self.session, favname, favlink)
 
 	def keyGreen(self):
 		if self.ready:
@@ -885,16 +929,17 @@ class openATVMain(openATVglobals):
 			self.threadlink = self.oldthreadlink
 			self.favmenu = False
 
-	def keyRed(self):
-		favname, favlink = self.makeFavdata()
-		if self.favoriteExists(self.session, favname, favlink):
-			self.session.open(MessageBox, f"ABBRUCH!\n\n'{favname}'\n\nist bereits in den Favoriten vorhanden.\n", type=MessageBox.TYPE_ERROR, timeout=5, close_on_any_key=True)
-		else:
-			self.session.openWithCallback(boundFunction(self.red_return, favname, favlink), MessageBox, f"'{favname}'\n\nzu den Favoriten hinzufügen?\n", MessageBox.TYPE_YESNO, timeout=30)
+	def keyBlue(self):
+		if self.currmode == "thread":
+			callInThread(self.makeMenu)
 
-	def red_return(self, favname, favlink, answer):
-		if answer is True:
-			self.writeFavorite(self.session, favname, favlink)
+	def switchToMenuview(self):
+		self.currmode = "menu"
+		self["menu"].style = "default"
+		self["headline"].setText("aktuelle Themen")
+		self["pagecount"].setText("")
+		self.updateSkin()
+		self["menu"].setCurrentIndex(self.oldmenuindex)
 
 	def makeFavdata(self):
 		favname, favlink = "", ""
