@@ -11,7 +11,7 @@ from glob import glob
 from html import unescape
 from os import rename, makedirs, linesep
 from os.path import join, exists
-from re import search, sub, split, S
+from re import search, sub, split, findall, S
 from requests import get, exceptions
 from shutil import copy2, rmtree
 from twisted.internet.reactor import callInThread
@@ -47,6 +47,7 @@ class openATVglobals(Screen):
 	def cleanupDescTags(self, text, singleline=True):  # singleline=True mercilessly cuts the text down to a minimum for MultiContentEntryLines
 		if text:  # ATTENTION: The order must not be changed!
 			group1, group2 = r'\g<1>', r'\g<2>'
+			text = sub(r'\t', '', text)  # remove all tabs
 			text = sub(r'\s+', ' ', text) if singleline else sub(r'\n+', '', text).strip()  # remove white spaces or multipe \n
 			text = sub(r'<span style="text-align:center;display:block"><img src=".*?" class="postimage" alt="Bild">', '{Bild}' if singleline else '{Bild}\n', text)  # remove embedded pictures
 			stext = r'<span style=".*?"><span style="font-size:.*?">(.*?)</div>'
@@ -60,6 +61,7 @@ class openATVglobals(Screen):
 			text = sub(r'<pre class="abbc3_pre"\s*style=".*?"><span style="text-align:center;display:block">(.*?)</pre><span style="text-align:center;display:block">', group1 if singleline else f"{group1}\n", text)  # unwrap pre-formatted
 			rtext = f"Datei '{group1}' {group2}" if singleline else f"\nDatei '{group1}'\n{group2}"
 			text = sub(r'<div class="inline-attachment">.*?href=".*?">(.*?)</a></dt>\s*<dd>(.*?)</dd>\s*</dl>\s*</div>', rtext, text, flags=S).strip()  # unwrap embedded attachments
+			text = sub(r'<div class="inline-attachment">.*?title="(.*?)" />.*?</div>', f"{{Link: {group1}}}\n", text, flags=S).strip()  # unwrap embedded attachments
 			rtext = "{Code}" if singleline else "{Code}\n"
 			text = sub(r'<table class="ModTable".*?display:block">(.*?)</span>.*?;display:block">', group1 if singleline else f"{group1}\n", text)  # unwrap moderator message
 			text = sub(r'<div class="hidebox hidebox_hidden">.*?"text-align:center;display:block">', '{Versteckt}' if singleline else '{Versteckt}\n', text)  # remove hidden texts
@@ -79,7 +81,6 @@ class openATVglobals(Screen):
 			text = sub(r'<span style="text-align:center;display:block"><span style="font-size:.*?">', '', f"{text}</div>", flags=S)  # necessary for some descriptions
 			rtext = "{Zitat}" if singleline else f"\n-----{{Zitat Anfang}}{'-' * 126}\n{group1}\n{'-' * 120}{{Zitat Ende}}-----\n"
 			text = sub(r'<blockquote class="uncited"><div>(.*?)</div></blockquote>', rtext, text)  # unwrap uncite blockquotes
-			text = sub(r'<span style="text-align:center;display:block"><span style="font-size:.*?">', '', f"{text}</div>", flags=S)  # necessary for some descriptions
 			rtext = "{Bild}" if singleline else f"\n{{Bild: {group1}}}\n"
 			text = sub(r'<div class="inline-attachment">\s*<dl class="file">\s*<dt class="attach-image">.*?</dt>\s*<dd>(.*?)</dd>\s*</dl>\s*</div>', rtext, text, flags=S)  # unwrap pictures
 			text = sub(r'<img alt="(.*?)" class="emoji smilies" draggable="false" src=".*?">', '', text)  # unwrap emoicons
@@ -98,11 +99,11 @@ class openATVglobals(Screen):
 			text = sub(r'<span class="blur".*?>(.*?)</span>', group1, text)  # unwrap blurs
 			text = sub(r'<bdo dir="rtl">(.*?)</bdo>', group1, text)  # unwrap direction change
 			text = sub(r'<strong class="text-strong"><span style="color:#.*?">(.*?)</strong>', group1, text)  # unwrap colored bolds
-			text = sub(r'<a href=".*?" class="postlink">(.*?)</a>', f"{{Link: {group1}}}", text)  # remove links
+			text = sub(r'<a href=".*?" class="postlink">(.*?)</a>', f"{{Link: {group1}}}", text)  # remove postlinks
 			text = sub(r'<span style="color:.*?"><strong class="text-strong">(.*?)<strong class="text-strong">.*?</strong>.*?</strong>', group1, text, flags=S)  # unwrap colored bolds
 			text = sub(r'<strong class="text-strong">(.*?)</strong>', group1, text)  # unwrap bolds
+			text = sub(r'<span style=".*?">(.*?)</span>', group1, text)  # unwrap remaining styles
 			text = sub(r'<span style="color:.*?">(.*?)</span>', group1, text)  # unwrap colors
-			text = sub(r'<a href=".*?" class="postlink">(.*?)</a>', f"{{Link: {group1}}}", text)  # remove links
 			text = sub(r'<em class="text-italics">(.*?)</em>', group1, text)  # unwrap italic
 			text = sub(r'<em class="mention">(.*?)</em>', group1, text)  # unwrap mentionned
 			text = sub(r'<div class="notice">.*?</div>', '', text)  # remove notices
@@ -127,12 +128,12 @@ class openATVglobals(Screen):
 			return text.replace("<b>", "").replace("</b>", "").replace("</font>", "")  # remove breaks / newlines / font tag
 		return ""
 
-	def searchOneValue(self, regex, text, fallback, flag_S=False):
-		text = search(regex, text, flags=S) if flag_S else search(regex, text)
+	def searchOneValue(self, regex, text, fallback, flags=None):
+		text = search(regex, text, flags) if flags else search(regex, text)
 		return text.group(1) if text else fallback
 
-	def searchTwoValues(self, regex, text, fallback1, fallback2, flag_S=False):
-		text = search(regex, text, flags=S) if flag_S else search(regex, text)
+	def searchTwoValues(self, regex, text, fallback1, fallback2, flags=None):
+		text = search(regex, text, flags) if flags else search(regex, text)
 		return (text.group(1), text.group(2)) if text else (fallback1, fallback2)
 
 	def downloadPage(self, url, success=None, index=None):
@@ -183,6 +184,11 @@ class openATVglobals(Screen):
 					f.write(f"{favname}\t{favlink}{linesep}")
 			except OSError as error:
 				self.session.open(MessageBox, f"Favoriten konnten nicht geschrieben werden:\n'{error}'", type=MessageBox.TYPE_INFO, timeout=2, close_on_any_key=True)
+
+	def downloadError(self, error):
+		errormsg = f"Der opena.tv Server ist zur Zeit nicht erreichbar.\n{error}"
+		print(f"[{self.MODULE_NAME}] ERROR in module 'downloadError': {errormsg}!")
+		self.session.open(MessageBox, errormsg, MessageBox.TYPE_INFO, timeout=30, close_on_any_key=True)
 
 
 class BlinkingLabel(Label, BlinkingWidget):
@@ -477,11 +483,6 @@ class openATVPost(openATVglobals):
 		except exceptions.RequestException as error:
 			self.downloadError(error)
 
-	def downloadError(self, error):
-		errormsg = f"Der opena.tv Server ist zur Zeit nicht erreichbar.\n{error}"
-		print(f"[{self.MODULE_NAME}] ERROR in module 'downloadError': {errormsg}!")
-		self.session.open(MessageBox, errormsg, MessageBox.TYPE_INFO, timeout=30, close_on_any_key=True)
-
 	def keyYellow(self):
 		if self.favmenu:
 			self.session.open(MessageBox, "Dieses Fenster wurde bereits als Favorit geöffnet!\nUm auf die Favoritenliste zurückzukommen, bitte '2x Verlassen/Exit' drücken!\n", type=MessageBox.TYPE_INFO, timeout=5, close_on_any_key=True)
@@ -546,8 +547,8 @@ class openATVMain(openATVglobals):
 					{"default": (80,[ # index
 						MultiContentEntryPixmapAlphaTest(pos=(0,0), size=(1200,1), png=6), # line separator
 						MultiContentEntryText(pos=(6,2), size=(960,34), font=0, color="grey", color_sel="white", flags=RT_HALIGN_LEFT|RT_ELLIPSIS, text=0),  # theme
-						MultiContentEntryText(pos=(6,28), size=(960,32), font=1, color=0x003ca2c6, color_sel=0x00a6a6a6, flags=RT_HALIGN_LEFT|RT_WRAP|RT_ELLIPSIS, text=1),  # forum
-						MultiContentEntryText(pos=(6,52), size=(960,32), font=1, color=0x003ca2c6, color_sel=0x00a6a6a6, flags=RT_HALIGN_LEFT|RT_WRAP|RT_ELLIPSIS, text=2),  # description
+						MultiContentEntryText(pos=(6,28), size=(930,32), font=1, color=0x003ca2c6, color_sel=0x00a6a6a6, flags=RT_HALIGN_LEFT, text=1),  # creation
+						MultiContentEntryText(pos=(6,52), size=(930,32), font=1, color=0x003ca2c6, color_sel=0x00a6a6a6, flags=RT_HALIGN_LEFT, text=2),  # forum
 						MultiContentEntryText(pos=(940,2), size=(232,30), font=2, color=0x005fb300, color_sel=0x0088ff00, flags=RT_HALIGN_RIGHT, text=3),  # date
 						MultiContentEntryText(pos=(940,24), size=(232,34), font=0, color=0x00b2b300, color_sel=0x00ffff00, flags=RT_HALIGN_RIGHT, text=4),  # user
 						MultiContentEntryText(pos=(940,54), size=(232,30), font=2, color=0x003ca2c6, color_sel=0x0092cbdf, flags=RT_HALIGN_RIGHT, text=5)  # statistic
@@ -612,7 +613,7 @@ class openATVMain(openATVglobals):
 		self["button_keypad"] = Pixmap()
 		self["button_keypad"].hide()
 		self["key_red"] = StaticText("Favorit hinzufügen")
-		self["key_green"] = StaticText("Alles aktualisieren")
+		self["key_green"] = StaticText("Aktualisieren")
 		self["key_yellow"] = StaticText()
 		self["key_blue"] = StaticText()
 		self["pagecount"] = StaticText()
@@ -701,11 +702,13 @@ class openATVMain(openATVglobals):
 					username = self.cleanupUserTags(self.searchOneValue(r'class="usernam.*?">(.*?)</', post, ""))
 					userlist.append(username)
 					avatar, online = None, False  # not available on starting page
-					title = self.searchOneValue(r'class="topictitle">(.*?)</a>', post, "{kein Thema}")
-					forum = self.searchOneValue(r'» in <a href=".*?">(.*?)</a> » <a href="', post, "{neues Forum}")
-					forum = f"Forum: {forum}"
-					creator, created = self.searchTwoValues(r'class="username">(.*?)</a>.*?">(.*?)</a>', post, "", "", flag_S=True)
-					desc = f"von '{creator}' am {created}" if creator and created else "neues Thema erstellt"
+					title = self.searchOneValue(r'class="topictitle">(.*?)</a>', post, "{kein Thema gefunden}")
+					responsive = self.searchOneValue(r'<div class="responsive-hide">\s*(.*?)\s*</div>', post, "", flags=S)
+					creator, created = self.searchTwoValues(r'class="username">(.*?)</a>  »(.*?)\s*»', responsive, "", "", flags=S)
+					creation = f"Verfasst von '{creator}' am {created}" if creator and created else "neues Thema erstellt"
+					forum = self.searchOneValue(r'» in (.*?)\s</div>', post, "{neues Forum}", flags=S)
+					forum = sub(r'<a href=".*?">(.*?)</a>', r'\g<1>', forum)  # unwrap linktexts
+					forum = f"in {forum}"
 					date = self.searchOneValue(r'title="Gehe zum letzten Beitrag">(.*?)</a>', post, "{kein Datum}")
 					stats = []
 					accesses = self.searchOneValue(r'<dd class="views">(.*?)<dfn>Zugriffe</dfn></dd>', post, "0").strip()
@@ -720,7 +723,7 @@ class openATVMain(openATVglobals):
 					url = self.searchOneValue(r'<div class="list-inner">\s*<a href="./(.*?)" class="', post, "")  # e.g. viewtopic.php?t=66622&sid=a6b61343ae1c45fcd16fb8a172e1fd7f
 					threadid = parse_qs(urlparse(url).query)['t'][0]
 					self.threadlinks.append(f"{self.BASEURL}viewtopic.php?t={threadid}&start={answers // self.POSTSPERTHREAD * self.POSTSPERTHREAD}" if threadid else "")
-					self.maintexts.append([title, forum, desc, date, username, stats])
+					self.maintexts.append([title, creation, forum, date, username, stats])
 					self.menupics.append([avatar, online])
 		userlist = list(dict.fromkeys(userlist))  # remove dupes
 		userlist = ", ".join(userlist)
@@ -753,18 +756,18 @@ class openATVMain(openATVglobals):
 		if output:
 			endpos = output.find('<div class="action-bar actions-jump">')
 			cutout = unescape(output[:endpos])
-			pagination = self.searchOneValue(r'<div class="pagination">(.*?)</div>', cutout, "", flag_S=True)
-			currpage, maxpages = self.searchTwoValues(r'Seite <strong>(.*?)</strong> von <strong>(.*?)</strong>', pagination, "1", "1", flag_S=True)
+			pagination = self.searchOneValue(r'<div class="pagination">(.*?)</div>', cutout, "", flags=S)
+			currpage, maxpages = self.searchTwoValues(r'Seite <strong>(.*?)</strong> von <strong>(.*?)</strong>', pagination, "1", "1", flags=S)
 			self.currpage, self.maxpages = int(currpage), int(maxpages)
 			posttitle = self.searchOneValue(r'<title>(.*?)</title>', cutout, "{kein Titel gefunden}").split(" - openATV Forum")[0]
 			posttitle = posttitle[:posttitle.find(" - Seite")]
 			self["waiting"].stopBlinking()
 			self["headline"].setText(f"THEMA: {posttitle}")
 			self["pagecount"].setText(f"Seite {currpage} von {maxpages}")
-			for post in split(r'<dl class="postprofile"', cutout, flags=S)[1:]:
+			for post in split(r'class="post has-profile bg', cutout, flags=S)[1:]:
 				postid = self.searchOneValue(r'id="profile(.*?)"', post, "{n/v}")
 				postnr = self.searchOneValue(r'return false;">(.*?)</a></span>', post, "")
-				online = self.searchOneValue(r'<div id=".*?" class="post has-profile bg.*? (.*?)">', post, "") == True
+				online = "online" in self.searchOneValue(r'<div id=".*?" class="post has-profile bg.*? (.*?)">', post, "")
 				avatarlink = self.searchOneValue(r'<img class="avatar" src="./(.*?)"', post, "")
 				avatarlink = f"{self.BASEURL}{avatarlink}" if avatarlink else None
 				self.handleAvatar(avatarlink)  # trigger download of Avatar
@@ -779,14 +782,20 @@ class openATVMain(openATVglobals):
 				thxreceived = self.searchOneValue(r'/false.*?">(.*?)</a></dd>', post, "keine")
 				registered = self.searchOneValue(r'<strong>Registriert:</strong>(.*?)</dd>', post, "{unbekannt}").replace("  ", " ")
 				date = self.searchOneValue(r'<time datetime=".*?">(.*?)</time>', post, "{kein Datum/Uhrzeit}")
-				signature = self.searchOneValue(r'<div id=".*?" class="signature">(.*?)\s*</div>', post, "", flag_S=True)
-				fulldesc = self.searchOneValue(r'<div class="content">(.*?)\s*<div id=', post, "{keine Beschreibung}", flag_S=True)
+				signature = self.searchOneValue(r'<div id=".*?" class="signature">(.*?)\s*</div>', post, "", flags=S)
+				for element in findall(r'<a href=".*?"\s*class="postlink".*?">(.*?)</span></a>', signature, flags=S):
+					signature = sub(r'<a href=".*?"\s*class="postlink".*?">(.*?)</span></a>', f"{{Link: {element}}}", signature, count=1, flags=S)
+				signature = sub(r'<span style="font-size.*?;line-height.*?">', '', signature)  # remove styles
+				if signature:
+					signature = f"{{Signatur: {signature}}}"
+				fulldesc = self.searchOneValue(r'<div class="content">(.*?)\s*<div id=', post, "{keine Beschreibung}", flags=S)
 				cngreason = self.searchOneValue(r'<em>(.*?)</em>', post, "kein Änderungsgrund angegeben")
-				cnguser, cngdate = self.searchTwoValues(r'<div class="notice">\s*Zuletzt geändert von <a href=".*?">(.*?)</a>(.*?)</div>', post, "", "", flag_S=True)
+				cnguser, cngdate = self.searchTwoValues(r'<div class="notice">\s*Zuletzt geändert von <a href=".*?">(.*?)</a>(.*?)</div>', post, "", "", flags=S)
 				changes = f"Zuletzt geändert von {cnguser.strip()} {cngdate.replace("<br />", "").strip()}<br>Grund: {cngreason.strip()}" if cnguser and cngdate else ""
-				fulldesc += f"{signature} {changes}"
+				desc = fulldesc
 				desc = self.cleanupDescTags(f"{fulldesc}\n")
 				desc = f"{postnr}: {desc[:270]}{desc[270:desc.find(' ', 270)]}…" if len(desc) > 270 else f"{postnr}: {desc}"
+				fulldesc += f"<br>{signature}<br>{changes}"
 				self.threadtexts.append([desc, date, username, postcnt])
 				self.threadpics.append([avatarlink, online])
 				self.postlist.append((posttitle, postid, postnr, avatarlink, online, username, usertitle, userrank, residence, postcnt, thxgiven, thxreceived, registered, date, fulldesc))
@@ -865,11 +874,6 @@ class openATVMain(openATVglobals):
 		except exceptions.RequestException as error:
 			self.downloadError(error)
 
-	def downloadError(self, error):
-		errormsg = f"Der opena.tv Server ist zur Zeit nicht erreichbar.\n{error}"
-		print(f"[{self.MODULE_NAME}] ERROR in module 'downloadError': {errormsg}!")
-		self.session.open(MessageBox, errormsg, MessageBox.TYPE_INFO, timeout=30, close_on_any_key=True)
-
 	def keyOk(self):
 		current = self["menu"].getCurrentIndex()
 		if self.currmode == "menu":
@@ -931,7 +935,7 @@ class openATVMain(openATVglobals):
 
 	def keyBlue(self):
 		if self.currmode == "thread":
-			callInThread(self.makeMenu)
+			self.switchToMenuview()
 
 	def switchToMenuview(self):
 		self.currmode = "menu"
