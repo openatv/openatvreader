@@ -54,7 +54,7 @@ class openATVglobals(Screen):
 			rtext = search(stext, text)
 			if rtext:
 				rtext = rtext.group(1).replace("</span>", "").strip()
-				rtext = rtext.replace("<br> ", " ") if singleline else rtext.replace("<br> ", "\n")
+				rtext = rtext.replace("<br> ", " ") if singleline else rtext.replace("<br>", "", 1).replace("<br>\n", "")
 				rtext = sub(r'<span style="text-decoration:underline"><a href="https:.*?" class="postlink">(.*?)</a>', group1, rtext).strip()
 				text = sub(stext, rtext, text)
 			text = text.replace("<br>", "") if singleline else text.replace("<br>", "\n")  # necessary for following code
@@ -83,10 +83,11 @@ class openATVglobals(Screen):
 			text = sub(r'<blockquote class="uncited"><div>(.*?)</div></blockquote>', rtext, text)  # unwrap uncite blockquotes
 			rtext = "{Bild}" if singleline else f"\n{{Bild: {group1}}}\n"
 			text = sub(r'<div class="inline-attachment">\s*<dl class="file">\s*<dt class="attach-image">.*?</dt>\s*<dd>(.*?)</dd>\s*</dl>\s*</div>', rtext, text, flags=S)  # unwrap pictures
-			text = sub(r'<img alt="(.*?)" class="emoji smilies" draggable="false" src=".*?">', '', text)  # unwrap emoicons
-			text = sub(r'<span style="text-align:center;display:block">(.*?)/align]', group1, text)  # unwrap centered
+			text = sub(r'<img class="smilies" src=".*?" alt="(.*?)" title=".*?" />', f"{{Emoicon: {group1}}}", text)  # unwrap emoicons
+			text = sub(r'<img alt="(.*?)" class="emoji smilies" draggable="false" src=".*?">', '', text)  # remov emoicons
 			text = sub(r'<ul>.*?</ul>', '{Auflistung}' if singleline else '{Auflistung}\n', text)  # remove free listings
 			text = sub(r'<span style="text-align:center;display:block">.*?</span>', "", text)  # remove picture aligns
+			text = sub(r'<span style="text-align:center;display:block">(.*?)/align]', group1, text)  # unwrap centered
 			text = sub(r'<span style="text-decoration:underline">(.*?)</span>', group1, text)  # unwrap underline
 			text = sub(r'<img src=".*?" class="postimage" alt="Bild">', '{Bild}', text)  # remove pictures
 			text = sub(r'<span class="dropshadow".*?">(.*?)</span>', group1, text)  # unwrap dropshadows
@@ -109,10 +110,13 @@ class openATVglobals(Screen):
 			text = sub(r'<div class="notice">.*?</div>', '', text)  # remove notices
 			text = sub(r'<sup>(.*?)</sup>', group1, text)  # unwrap superscripts
 			text = sub(r'<sub>(.*?)</sub>', group1, text)  # unwrap subscripts
+			text = sub(r'<cite>(.*?)</cite>', group1, text)  # unwrap cites
 			text = sub(r'<em>.*?</em>', '', text)  # remove change reason
 			text = sub(r'<strong>.*?</strong>', '', text)  # change text
 			text = text.replace("</span>", "")  # necessary for following code
 			text = sub(r'<div style="float:.*?display:block">(.*?)</div><span style="text-align:center;display:block">', group1 if singleline else f"{group1}\n", text)  # unwrap paddings
+			text = text.replace("<br />", "") if singleline else text.replace("<br />", "\n")  # cleanup remaining scraps
+			text = text.replace("<div>", "\n").replace("<blockquote>", "").strip()  # cleanup remaining scraps
 			text = text.replace("</div>", "\n").replace("</blockquote>", "").strip()  # cleanup remaining scraps
 			text = self.cleanupUserTags(text)
 			return text if singleline else f"{text}\n"
@@ -149,6 +153,11 @@ class openATVglobals(Screen):
 		except exceptions.RequestException as error:
 			self.downloadError(error)
 
+	def downloadError(self, error):
+		errormsg = f"Der opena.tv Server ist zur Zeit nicht erreichbar.\n{error}"
+		print(f"[{self.MODULE_NAME}] ERROR in module 'downloadError': {errormsg}!")
+		self.session.open(MessageBox, errormsg, MessageBox.TYPE_INFO, timeout=30, close_on_any_key=True)
+
 	def showPic(self, pixmap, filename, show=True, scale=True):
 		try:  # for openATV 7.x
 			if scale:
@@ -184,11 +193,6 @@ class openATVglobals(Screen):
 					f.write(f"{favname}\t{favlink}{linesep}")
 			except OSError as error:
 				self.session.open(MessageBox, f"Favoriten konnten nicht geschrieben werden:\n'{error}'", type=MessageBox.TYPE_INFO, timeout=2, close_on_any_key=True)
-
-	def downloadError(self, error):
-		errormsg = f"Der opena.tv Server ist zur Zeit nicht erreichbar.\n{error}"
-		print(f"[{self.MODULE_NAME}] ERROR in module 'downloadError': {errormsg}!")
-		self.session.open(MessageBox, errormsg, MessageBox.TYPE_INFO, timeout=30, close_on_any_key=True)
 
 
 class BlinkingLabel(Label, BlinkingWidget):
@@ -704,7 +708,7 @@ class openATVMain(openATVglobals):
 					avatar, online = None, False  # not available on starting page
 					title = self.searchOneValue(r'class="topictitle">(.*?)</a>', post, "{kein Thema gefunden}")
 					responsive = self.searchOneValue(r'<div class="responsive-hide">\s*(.*?)\s*</div>', post, "", flags=S)
-					creator, created = self.searchTwoValues(r'class="username">(.*?)</a>  »(.*?)\s*»', responsive, "", "", flags=S)
+					creator, created = self.searchTwoValues(r'class="username.*?">(.*?)</a>  »(.*?)\s*»', responsive, "", "", flags=S)
 					creation = f"Verfasst von '{creator}' am {created}" if creator and created else "neues Thema erstellt"
 					forum = self.searchOneValue(r'» in (.*?)\s</div>', post, "{neues Forum}", flags=S)
 					forum = sub(r'<a href=".*?">(.*?)</a>', r'\g<1>', forum)  # unwrap linktexts
@@ -756,21 +760,24 @@ class openATVMain(openATVglobals):
 		if output:
 			endpos = output.find('<div class="action-bar actions-jump">')
 			cutout = unescape(output[:endpos])
-			pagination = self.searchOneValue(r'<div class="pagination">(.*?)</div>', cutout, "", flags=S)
-			currpage, maxpages = self.searchTwoValues(r'Seite <strong>(.*?)</strong> von <strong>(.*?)</strong>', pagination, "1", "1", flags=S)
-			self.currpage, self.maxpages = int(currpage), int(maxpages)
+			maxpages = findall(r'<li><a class="button" href=".*?" role="button">(.*?)</a></li>', cutout)
+			maxpages = maxpages[-1] if maxpages else "1"
+			currpage = self.searchOneValue(r'<li class="active"><span>(.*?)</span></li>', cutout, "")
+			maxpages = int(maxpages) if maxpages.isdigit() else 1
+			self.currpage = int(currpage) if currpage.isdigit() else 1
+			self.maxpages = self.currpage if maxpages < self.currpage else maxpages
 			posttitle = self.searchOneValue(r'<title>(.*?)</title>', cutout, "{kein Titel gefunden}").split(" - openATV Forum")[0]
 			posttitle = posttitle[:posttitle.find(" - Seite")]
 			self["waiting"].stopBlinking()
 			self["headline"].setText(f"THEMA: {posttitle}")
-			self["pagecount"].setText(f"Seite {currpage} von {maxpages}")
+			self["pagecount"].setText(f"Seite {self.currpage} von {self.maxpages}")
 			for post in split(r'class="post has-profile bg', cutout, flags=S)[1:]:
 				postid = self.searchOneValue(r'id="profile(.*?)"', post, "{n/v}")
 				postnr = self.searchOneValue(r'return false;">(.*?)</a></span>', post, "")
 				online = "online" in self.searchOneValue(r'<div id=".*?" class="post has-profile bg.*? (.*?)">', post, "")
 				avatarlink = self.searchOneValue(r'<img class="avatar" src="./(.*?)"', post, "")
 				avatarlink = f"{self.BASEURL}{avatarlink}" if avatarlink else None
-				self.handleAvatar(avatarlink)  # trigger download of Avatar
+				self.handleAvatar(avatarlink)  # trigger download of avatar
 				username = self.cleanupUserTags(self.searchOneValue(r'class="usernam.*?">(.*?)</', post, ""))
 				if "gelöschter benutzer" in username.lower():
 					username = "{gelöscht}"
@@ -785,9 +792,11 @@ class openATVMain(openATVglobals):
 				signature = self.searchOneValue(r'<div id=".*?" class="signature">(.*?)\s*</div>', post, "", flags=S)
 				for element in findall(r'<a href=".*?"\s*class="postlink".*?">(.*?)</span></a>', signature, flags=S):
 					signature = sub(r'<a href=".*?"\s*class="postlink".*?">(.*?)</span></a>', f"{{Link: {element}}}", signature, count=1, flags=S)
-				signature = sub(r'<span style="font-size.*?;line-height.*?">', '', signature)  # remove styles
 				if signature:
-					signature = f"{{Signatur: {signature}}}"
+					signature = sub(r'<span style="font-size.*?;line-height.*?">', '', signature)  # remove styles
+					signature = "".join(signature.split("<br>\n<br>\n"))  # remove all multiple "<br>\n"
+					signature = "".join(signature.rsplit("<br>\n", 1))  # remove only last "<br>\n"
+					signature = f"{{Signatur: {signature}}}<br>"
 				fulldesc = self.searchOneValue(r'<div class="content">(.*?)\s*<div id=', post, "{keine Beschreibung}", flags=S)
 				cngreason = self.searchOneValue(r'<em>(.*?)</em>', post, "kein Änderungsgrund angegeben")
 				cnguser, cngdate = self.searchTwoValues(r'<div class="notice">\s*Zuletzt geändert von <a href=".*?">(.*?)</a>(.*?)</div>', post, "", "", flags=S)
