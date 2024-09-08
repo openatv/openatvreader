@@ -288,7 +288,11 @@ class openATVFav(openATVglobals):
 		if self.favlist:
 			favlink = self.favlist[curridx][1]
 			if favlink:
-					self.session.open(openATVMain, favlink=favlink, favmenu=True)
+					self.session.openWithCallback(self.keyOkCB, openATVMain, favlink=favlink, favmenu=True)
+
+	def keyOkCB(self, home=False):
+		if home:
+			self.close(True)
 
 	def keyRed(self):
 		if exists(self.FAVORITEN):
@@ -296,12 +300,9 @@ class openATVFav(openATVglobals):
 			favname = self.favlist[curridx][0]
 			favlink = self.favlist[curridx][1]
 			if favname and favlink:
-				self.session.openWithCallback(boundFunction(self.red_return, favname, favlink), MessageBox, f"'{favname}'\n\naus den Favoriten entfernen?\n", MessageBox.TYPE_YESNO, timeout=30, default=False)
+				self.session.openWithCallback(boundFunction(self.keyRedCB, favname, favlink), MessageBox, f"'{favname}'\n\naus den Favoriten entfernen?\n", MessageBox.TYPE_YESNO, timeout=30, default=False)
 
-	def keyBlue(self):
-		self.close(True)
-
-	def red_return(self, favname, favlink, answer):
+	def keyRedCB(self, favname, favlink, answer):
 		if answer is True:
 			data = ""
 			try:
@@ -319,6 +320,9 @@ class openATVFav(openATVglobals):
 				self.session.open(MessageBox, f"Favoriten konnten nicht gelesen werden:\n'{error}'", type=MessageBox.TYPE_INFO, timeout=2, close_on_any_key=True)
 			self.favlist = []
 			self.makeFav()
+
+	def keyBlue(self):
+		self.close(True)
 
 	def keyPageDown(self):
 		self["favmenu"].down()
@@ -459,9 +463,9 @@ class openATVPost(openATVglobals):
 		if self.favmenu:
 			self.session.open(MessageBox, "Dieses Fenster wurde bereits als Favorit geöffnet!\nUm auf die Favoritenliste zurückzukommen, bitte '2x Verlassen/Exit' drücken!\n", type=MessageBox.TYPE_INFO, timeout=5, close_on_any_key=True)
 		else:
-			self.session.openWithCallback(self.keyYellow_return, openATVFav)
+			self.session.openWithCallback(self.keyYellowCB, openATVFav)
 
-	def keyYellow_return(self, home=False):
+	def keyYellowCB(self, home=False):
 		if home:
 			self.close(True)
 
@@ -471,12 +475,12 @@ class openATVPost(openATVglobals):
 		if self.favoriteExists(self.session, favname, favlink):
 			self.session.open(MessageBox, f"ABBRUCH!\n\n'{favname}'\n\nist bereits in den Favoriten vorhanden.\n", type=MessageBox.TYPE_ERROR, timeout=5, close_on_any_key=True)
 		else:
-			self.session.openWithCallback(boundFunction(self.red_return, favname, favlink), MessageBox, f"'{favname}'\n\nzu den Favoriten hinzufügen?\n", MessageBox.TYPE_YESNO, timeout=30)
+			self.session.openWithCallback(boundFunction(self.keyRedCB, favname, favlink), MessageBox, f"'{favname}'\n\nzu den Favoriten hinzufügen?\n", MessageBox.TYPE_YESNO, timeout=30)
 
 	def keyBlue(self):
 		self.close(True)
 
-	def red_return(self, favname, favlink, answer):
+	def keyRedCB(self, favname, favlink, answer):
 		if answer is True:
 			self.writeFavorite(self.session, favname, favlink)
 
@@ -638,12 +642,7 @@ class openATVMain(openATVglobals):
 	def onLayoutFinished(self):
 		self.showPic(self["button_page"], join(self.PLUGINPATH, f"icons/key_updown_{self.RESOLUTION}.png"), show=False, scale=False)
 		self.showPic(self["button_keypad"], join(self.PLUGINPATH, f"icons/keypad_{self.RESOLUTION}.png"), show=False, scale=False)
-		if self.favmenu:
-			self["button_yellow"].hide()
-			self["key_yellow"].setText("")
-		else:
-			self["button_yellow"].show()
-			self["key_yellow"].setText("Favoriten aufrufen")
+		self.updateYellow()
 		if self.favlink or self.threadlink:
 			callInThread(self.makeThread)
 		else:
@@ -817,6 +816,14 @@ class openATVMain(openATVglobals):
 			self["key_page"].setText("")
 			self["key_keypad"].setText("")
 
+	def updateYellow(self):
+		if self.favmenu:
+			self["button_yellow"].hide()
+			self["key_yellow"].setText("")
+		else:
+			self["button_yellow"].show()
+			self["key_yellow"].setText("Favoriten aufrufen")
+
 	def handleAvatar(self, url):
 		if url and url.startswith("./"):  # in case it's an plugin avatar
 			avatarpix = LoadPixmap(cached=True, path=join(self.PLUGINPATH, url.replace("./", "")))
@@ -866,11 +873,12 @@ class openATVMain(openATVglobals):
 			if current < len(self.postlist):
 				postdetails = self.postlist[current]
 				if postdetails:
-					self.session.openWithCallback(self.Ok_return, openATVPost, postdetails, self.favmenu)
+					self.session.openWithCallback(self.keyOkCB, openATVPost, postdetails, self.favmenu)
 
-	def Ok_return(self, home=False):
+	def keyOkCB(self, home=False):
 		if home:
-			self.switchToMenuview()
+			self["menu"].updateList([])
+			callInThread(self.makeMenu)
 
 	def keyExit(self):
 		if self.currmode == "menu":
@@ -888,9 +896,9 @@ class openATVMain(openATVglobals):
 		if self.favoriteExists(self.session, favname, favlink):
 			self.session.open(MessageBox, f"ABBRUCH!\n\n'{favname}'\n\nist bereits in den Favoriten vorhanden.\n", type=MessageBox.TYPE_ERROR, timeout=5, close_on_any_key=True)
 		else:
-			self.session.openWithCallback(boundFunction(self.red_return, favname, favlink), MessageBox, f"'{favname}'\n\nzu den Favoriten hinzufügen?\n", MessageBox.TYPE_YESNO, timeout=30)
+			self.session.openWithCallback(boundFunction(self.keyRedCB, favname, favlink), MessageBox, f"'{favname}'\n\nzu den Favoriten hinzufügen?\n", MessageBox.TYPE_YESNO, timeout=30)
 
-	def red_return(self, favname, favlink, answer):
+	def keyRedCB(self, favname, favlink, answer):
 		if answer is True:
 			self.writeFavorite(self.session, favname, favlink)
 
@@ -911,13 +919,19 @@ class openATVMain(openATVglobals):
 		else:
 			self.favmenu = True
 			self.oldthreadlink = self.threadlink
-			self.session.openWithCallback(self.yellow_return, openATVFav)
+			self.session.openWithCallback(self.keyYellowCB, openATVFav)
 
-	def yellow_return(self):
-			self.threadlink = self.oldthreadlink
-			self.favmenu = False
+	def keyYellowCB(self, home=False):
+		self.threadlink = self.oldthreadlink
+		self.favmenu = False
+		self.updateYellow()
+		if home:
+			self["menu"].updateList([])
+			callInThread(self.makeMenu)
 
 	def keyBlue(self):
+		if self.favmenu:
+			self.close(True)
 		if self.currmode == "thread":
 			self.switchToMenuview()
 
