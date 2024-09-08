@@ -34,7 +34,7 @@ from Tools.LoadPixmap import LoadPixmap
 
 
 class openATVglobals(Screen):
-	VERSION = "V2.0b"
+	VERSION = "V2.0"
 	BASEURL = "https://www.opena.tv/"
 	AVATARPATH = "/tmp/avatare"
 	PLUGINPATH = join(resolveFilename(SCOPE_PLUGINS), "Extensions/OpenATVreader/")
@@ -44,101 +44,69 @@ class openATVglobals(Screen):
 	POSTSPERTHREAD = 20
 	MODULE_NAME = __name__.split(".")[-2]
 
-	def cleanupDescTags(self, text, singleline=True):  # singleline=True mercilessly cuts the text down to a minimum for MultiContentEntryLines
-		if text:  # ATTENTION: The order must not be changed!
+	def cleanupDescTags(self, html, singleline=True):  # singleline=True mercilessly cuts the html down to a minimum for MultiContentEntryLines
+		if html:
+			# ATTENTION: The order must not be changed!
 			group1, group2 = r'\g<1>', r'\g<2>'
-			text = sub(r'\t', '', text)  # remove all tabs
-			text = sub(r'\s+', ' ', text) if singleline else sub(r'\n+', '', text).strip()  # remove white spaces or multipe \n
-			text = sub(r'<span style="text-align:center;display:block"><img src=".*?" class="postimage" alt="Bild">', '{Bild}' if singleline else '{Bild}\n', text)  # remove embedded pictures
-			stext = r'<span style=".*?"><span style="font-size:.*?">(.*?)</div>'
-			rtext = search(stext, text)
-			if rtext:
-				rtext = rtext.group(1).replace("</span>", "").strip()
-				rtext = rtext.replace("<br> ", " ") if singleline else rtext.replace("<br>", "", 1).replace("<br>\n", "")
-				rtext = sub(r'<span style="text-decoration:underline"><a href="https:.*?" class="postlink">(.*?)</a>', group1, rtext).strip()
-				text = sub(stext, rtext, text)
-			text = text.replace("<br>", "") if singleline else text.replace("<br>", "\n")  # necessary for following code
-			text = sub(r'<pre class="abbc3_pre"\s*style=".*?"><span style="text-align:center;display:block">(.*?)</pre><span style="text-align:center;display:block">', group1 if singleline else f"{group1}\n", text)  # unwrap pre-formatted
-			rtext = f"Datei '{group1}' {group2}" if singleline else f"\nDatei '{group1}'\n{group2}"
-			text = sub(r'<div class="inline-attachment">.*?href=".*?">(.*?)</a></dt>\s*<dd>(.*?)</dd>\s*</dl>\s*</div>', rtext, text, flags=S).strip()  # unwrap embedded attachments
-			text = sub(r'<div class="inline-attachment">.*?title="(.*?)" />.*?</div>', f"{{Link: {group1}}}\n", text, flags=S).strip()  # unwrap embedded attachments
-			rtext = "{Code}" if singleline else "{Code}\n"
-			text = sub(r'<table class="ModTable".*?display:block">(.*?)</span>.*?;display:block">', group1 if singleline else f"{group1}\n", text)  # unwrap moderator message
-			text = sub(r'<div class="hidebox hidebox_hidden">.*?"text-align:center;display:block">', '{Versteckt}' if singleline else '{Versteckt}\n', text)  # remove hidden texts
-			text = sub(r'<div class="offtopic".*?display:block">(.*?)</span>.*?display:block">', group1 if singleline else f"{group1}\n", text)  # unwrap offtopic texts
-			text = sub(r'<div class="abbc3-marquee">.*?display:block">(.*?)</span>.*?display:block">', group1 if singleline else f"{group1}\n", text)  # unwrap running text
-			text = sub(r'<div class="spoilwrapper".*?block">.*?</span></div></div>.*?block">', '{Spoiler}' if singleline else '{Spoiler}\n', text)  # remove spoilers
-			text = sub(r'<span class="responsive-hide">.*?class="username-coloured">(.*?)</a></strong>.*?</time>', group1, text)  # unwrap userlink
-			text = sub(r'<span class="abbc3_strike" style="text-decoration:line-through">(.*?)</span>', group1, text)  # unwrap strikes
-			text = sub(r'<pre class="nfo".*?block">(.*?)</span></pre>', group1 if singleline else f"{group1}\n", text)  # unwrap ASCII info
-			text = sub(r'<table class="pipe-table">.*?</table>', '{Tabelle}' if singleline else '{Tabelle}\n', text)  # remove tables
-			text = sub(r'<div class="codebox">.*?</p><pre><code>(.*?)</code></pre></div>', rtext, text)  # remove codeboxes
-			text = sub(r'<ol style="list-style-type:.*?</ol>', '{Auflistung}' if singleline else '{Auflistung}\n', text)  # remove decimal and alpha listings)
-			rtext = f"----- {group1} hat geschrieben: -----{{Zitat Anfang}}"
-			rtext = "{Zitat}" if singleline else f"{rtext}{'-' * (126 - len(rtext))}\n{group2}\n{'-' * 120}{{Zitat Ende}}-----\n"
-			for idx in range(5):  # in case of recursive quotes
-				text = sub(r'<blockquote cite=".*?"><div><cite><a href=".*?">(.*?)</a>.*?</cite>(.*?)</div></blockquote>', rtext, text, flags=S)  # unwrap cite blockquotes
-			text = sub(r'<span style="text-align:center;display:block"><span style="font-size:.*?">', '', f"{text}</div>", flags=S)  # necessary for some descriptions
-			rtext = "{Zitat}" if singleline else f"\n-----{{Zitat Anfang}}{'-' * 126}\n{group1}\n{'-' * 120}{{Zitat Ende}}-----\n"
-			text = sub(r'<blockquote class="uncited"><div>(.*?)</div></blockquote>', rtext, text)  # unwrap uncite blockquotes
-			rtext = "{Bild}" if singleline else f"\n{{Bild: {group1}}}\n"
-			text = sub(r'<div class="inline-attachment">\s*<dl class="file">\s*<dt class="attach-image">.*?</dt>\s*<dd>(.*?)</dd>\s*</dl>\s*</div>', rtext, text, flags=S)  # unwrap pictures
-			text = sub(r'<img class="smilies" src=".*?" alt="(.*?)" title=".*?" />', f"{{Emoicon: {group1}}}", text)  # unwrap emoicons
-			text = sub(r'<img alt="(.*?)" class="emoji smilies" draggable="false" src=".*?">', '', text)  # remov emoicons
-			text = sub(r'<ul>.*?</ul>', '{Auflistung}' if singleline else '{Auflistung}\n', text)  # remove free listings
-			text = sub(r'<span style="text-align:center;display:block">.*?</span>', "", text)  # remove picture aligns
-			text = sub(r'<span style="text-align:center;display:block">(.*?)/align]', group1, text)  # unwrap centered
-			text = sub(r'<span style="text-decoration:underline">(.*?)</span>', group1, text)  # unwrap underline
-			text = sub(r'<img src=".*?" class="postimage" alt="Bild">', '{Bild}', text)  # remove pictures
-			text = sub(r'<span class="dropshadow".*?">(.*?)</span>', group1, text)  # unwrap dropshadows
-			text = sub(r'<img class="smilies".*?alt="(.*?)".*?">', group1, text)  # unwrap emoicons
-			text = sub(r'<span style="font-family:.*?">(.*?)</span>', group1, text)  # unwrap fonts
-			text = sub(r'<span class="fadeEffect">(.*?)</span>', group1, text)  # unwrap fadeEffect
-			text = sub(r'<span class="shadow".*?">(.*?)</span>', group1, text)  # unwrap shadows
-			text = sub(r'<a href="./viewtopic.php.*?">(.*)</a>', group1, text)  # unwrap topics
-			text = sub(r'<span class="glow".*?">(.*?)</span>', group1, text)  # unwrap glows
-			text = sub(r'<span class="blur".*?>(.*?)</span>', group1, text)  # unwrap blurs
-			text = sub(r'<bdo dir="rtl">(.*?)</bdo>', group1, text)  # unwrap direction change
-			text = sub(r'<strong class="text-strong"><span style="color:#.*?">(.*?)</strong>', group1, text)  # unwrap colored bolds
-			text = sub(r'<a href=".*?" class="postlink">(.*?)</a>', f"{{Link: {group1}}}", text)  # remove postlinks
-			text = sub(r'<span style="color:.*?"><strong class="text-strong">(.*?)<strong class="text-strong">.*?</strong>.*?</strong>', group1, text, flags=S)  # unwrap colored bolds
-			text = sub(r'<strong class="text-strong">(.*?)</strong>', group1, text)  # unwrap bolds
-			text = sub(r'<span style=".*?">(.*?)</span>', group1, text)  # unwrap remaining styles
-			text = sub(r'<span style="color:.*?">(.*?)</span>', group1, text)  # unwrap colors
-			text = sub(r'<em class="text-italics">(.*?)</em>', group1, text)  # unwrap italic
-			text = sub(r'<em class="mention">(.*?)</em>', group1, text)  # unwrap mentionned
-			text = sub(r'<div class="notice">.*?</div>', '', text)  # remove notices
-			text = sub(r'<sup>(.*?)</sup>', group1, text)  # unwrap superscripts
-			text = sub(r'<sub>(.*?)</sub>', group1, text)  # unwrap subscripts
-			text = sub(r'<cite>(.*?)</cite>', group1, text)  # unwrap cites
-			text = sub(r'<em>.*?</em>', '', text)  # remove change reason
-			text = sub(r'<strong>.*?</strong>', '', text)  # change text
-			text = text.replace("</span>", "")  # necessary for following code
-			text = sub(r'<div style="float:.*?display:block">(.*?)</div><span style="text-align:center;display:block">', group1 if singleline else f"{group1}\n", text)  # unwrap paddings
-			text = text.replace("<br />", "") if singleline else text.replace("<br />", "\n")  # cleanup remaining scraps
-			text = text.replace("<div>", "\n").replace("<blockquote>", "").strip()  # cleanup remaining scraps
-			text = text.replace("</div>", "\n").replace("</blockquote>", "").strip()  # cleanup remaining scraps
-			text = self.cleanupUserTags(text)
-			return text if singleline else f"{text}\n"
-		return ""
+			# whitespacers
+			html = html.replace("\t", "")  # remove all tabs
+			html = "".join(html.split("<br>\n<br>\n"))  # remove only all multiple "<br>\n"
+			html = sub(r'\s+', ' ', html) if singleline else sub(r'\n+', '', html).strip()  # remove white spaces or multipe \n
+			html = html.replace("<br>", " ") if singleline else html.replace("<br>", "\n")
+			# special handling cites (blockquote)
+			rhtml = f"----- {group1} hat geschrieben: -----{{Zitat Anfang}}"
+			rhtml = "{Zitat}" if singleline else f"{rhtml}{'-' * (111 - len(rhtml))}\n{group2}\n{'-' * 120}{{Zitat Ende}}-----\n"
+			html = sub(r'<blockquote.*?<div><cite><a href="./memberlist.php.*?">(.*?)</a>.*?<a href="./viewtopic.php.*?</a>.*?</cite>(.*?)</div></blockquote>', rhtml, html, flags=S)
+			# special handling attachments
+			html = sub(r'<div id=".*?" class="signature">(.*)</div>', f"{group1}\n", html, flags=S)
+			html = sub(r'<div class="inline-attachment">.*?title="(.*?)" />.*?</div>', '{Bild} ' if singleline else f'\n{{Anhang: {group1}}}\n', html, flags=S)
+			html = sub(r'<a href="./download/file.php.*?title="(.*?)" /></a>', '{Bild} ' if singleline else group1, html, flags=S)
+			html = sub(r'<dd>(.*?)</dd>', group1, html, flags=S)
+			html = sub(r'<dl class="thumbnail">(.*?)\s*</dl>', '{Bild} ' if singleline else f'\n{{Anhangy: {group1}}}', html, flags=S).replace("</dl>", "")
+			html = sub(r'<dl class="attachbox">.*?<dt>.*?</dt>', '', html, flags=S)
+			html = sub(r'<dt>(.*?)</dt>', group1, html)
+			# general unwrappers
+			html = sub(r'<img alt="(.*?)" class="emoji smilies" draggable="false" src=".*?">', '', html)
+			html = sub(r'<table.*?">.*?</table>', '{Tabelle}' if singleline else '{Tabelle}\n', html)
+			html = sub(r'<ol.*?</ol>', '{Auflistung}' if singleline else '{Auflistung}\n', html)
+			html = sub(r'<pre.*?">(.*?)</pre>', group1 if singleline else f"{group1}\n", html)
+			html = sub(r'<a href=.*?">(.*?)</a>', f"\n{{Link: {group1}}}\n", html)
+			html = sub(r'<img src=.*?alt="(.*?)">', f'{{{group1}}}', html)
+			html = sub(r'<img.*?".*?alt="(.*?)".*?">', group1, html)
+			html = sub(r'<bdo dir="rtl">(.*?)</bdo>', group1, html)
+			html = sub(r'<strong.*?">(.*?)</strong>', group1, html)
+			html = sub(r'<span.*?">(.*?)</span>', group1, html)
+			html = sub(r'<strong>(.*?)</strong>', group1, html)
+			html = sub(r'<div.*?>(.*?)</div>', group1, html)
+			html = sub(r'<em.*?">(.*?)</em>', group1, html)
+			html = sub(r'<code>(.*)</code>', group1, html)
+			html = sub(r'<em.*?>(.*?)</em>', group1, html)
+			html = sub(r'<p>(.*?)<.*?</p>', group1, html)
+			html = sub(r'<sup>(.*?)</sup>', group1, html)
+			html = sub(r'<sub>(.*?)</sub>', group1, html)
+			html = sub(r'<pre>(.*?)</pre>', group1, html)
+			html = sub(r'<cite>.*?</cite>', '', html)
+			html = sub(r'<em>.*?</em>', '', html)
+			html = self.cleanupUserTags(html)
+		return html if singleline else f"{html}\n"
 
-	def cleanupUserTags(self, text):
-		if text:
+	def cleanupUserTags(self, html):
+		if html:
 			group1 = r'\g<1>'
-			text = sub(r'<b>(.*?)</b>', group1, text)  # remove fat marker
-			text = sub(r'<strike>(.*?)</strike>', group1, text)  # remove strikethrough
-			text = sub(r'<font\s*color=".*?">(.*?)</font>', group1, text)  # remove font color
-			text = sub(r'<marquee\s*direction=".*?" >(.*?)</marquee>', group1, text)  # remove marketing tag
-			return text.replace("<b>", "").replace("</b>", "").replace("</font>", "")  # remove breaks / newlines / font tag
+			html = sub(r'<b>(.*?)</b>', group1, html)  # remove fat marker
+			html = sub(r'<strike>(.*?)</strike>', group1, html)  # remove strikethrough
+			html = sub(r'<font\s*color=".*?">(.*?)</font>', group1, html)  # remove font color
+			html = sub(r'<marquee\s*direction=".*?" >(.*?)</marquee>', group1, html)  # remove marketing tag
+			return html.replace("<b>", "").replace("</b>", "").replace("</font>", "")  # remove breaks / newlines / font tag
 		return ""
 
-	def searchOneValue(self, regex, text, fallback, flags=None):
-		text = search(regex, text, flags) if flags else search(regex, text)
-		return text.group(1) if text else fallback
+	def searchOneValue(self, regex, html, fallback, flags=None):
+		html = search(regex, html, flags) if flags else search(regex, html)
+		return html.group(1) if html else fallback
 
-	def searchTwoValues(self, regex, text, fallback1, fallback2, flags=None):
-		text = search(regex, text, flags) if flags else search(regex, text)
-		return (text.group(1), text.group(2)) if text else (fallback1, fallback2)
+	def searchTwoValues(self, regex, html, fallback1, fallback2, flags=None):
+		html = search(regex, html, flags) if flags else search(regex, html)
+		return (html.group(1), html.group(2)) if html else (fallback1, fallback2)
 
 	def downloadPage(self, url, success=None, index=None):
 		url = url.encode("ascii", "xmlcharrefreplace").decode().replace(" ", "%20").replace("\n", "")
@@ -320,7 +288,11 @@ class openATVFav(openATVglobals):
 		if self.favlist:
 			favlink = self.favlist[curridx][1]
 			if favlink:
-					self.session.open(openATVMain, favlink=favlink, favmenu=True)
+					self.session.openWithCallback(self.keyOkCB, openATVMain, favlink=favlink, favmenu=True)
+
+	def keyOkCB(self, home=False):
+		if home:
+			self.close(True)
 
 	def keyRed(self):
 		if exists(self.FAVORITEN):
@@ -328,12 +300,9 @@ class openATVFav(openATVglobals):
 			favname = self.favlist[curridx][0]
 			favlink = self.favlist[curridx][1]
 			if favname and favlink:
-				self.session.openWithCallback(boundFunction(self.red_return, favname, favlink), MessageBox, f"'{favname}'\n\naus den Favoriten entfernen?\n", MessageBox.TYPE_YESNO, timeout=30, default=False)
+				self.session.openWithCallback(boundFunction(self.keyRedCB, favname, favlink), MessageBox, f"'{favname}'\n\naus den Favoriten entfernen?\n", MessageBox.TYPE_YESNO, timeout=30, default=False)
 
-	def keyBlue(self):
-		self.close(True)
-
-	def red_return(self, favname, favlink, answer):
+	def keyRedCB(self, favname, favlink, answer):
 		if answer is True:
 			data = ""
 			try:
@@ -351,6 +320,9 @@ class openATVFav(openATVglobals):
 				self.session.open(MessageBox, f"Favoriten konnten nicht gelesen werden:\n'{error}'", type=MessageBox.TYPE_INFO, timeout=2, close_on_any_key=True)
 			self.favlist = []
 			self.makeFav()
+
+	def keyBlue(self):
+		self.close(True)
 
 	def keyPageDown(self):
 		self["favmenu"].down()
@@ -491,9 +463,9 @@ class openATVPost(openATVglobals):
 		if self.favmenu:
 			self.session.open(MessageBox, "Dieses Fenster wurde bereits als Favorit geöffnet!\nUm auf die Favoritenliste zurückzukommen, bitte '2x Verlassen/Exit' drücken!\n", type=MessageBox.TYPE_INFO, timeout=5, close_on_any_key=True)
 		else:
-			self.session.openWithCallback(self.keyYellow_return, openATVFav)
+			self.session.openWithCallback(self.keyYellowCB, openATVFav)
 
-	def keyYellow_return(self, home=False):
+	def keyYellowCB(self, home=False):
 		if home:
 			self.close(True)
 
@@ -503,12 +475,12 @@ class openATVPost(openATVglobals):
 		if self.favoriteExists(self.session, favname, favlink):
 			self.session.open(MessageBox, f"ABBRUCH!\n\n'{favname}'\n\nist bereits in den Favoriten vorhanden.\n", type=MessageBox.TYPE_ERROR, timeout=5, close_on_any_key=True)
 		else:
-			self.session.openWithCallback(boundFunction(self.red_return, favname, favlink), MessageBox, f"'{favname}'\n\nzu den Favoriten hinzufügen?\n", MessageBox.TYPE_YESNO, timeout=30)
+			self.session.openWithCallback(boundFunction(self.keyRedCB, favname, favlink), MessageBox, f"'{favname}'\n\nzu den Favoriten hinzufügen?\n", MessageBox.TYPE_YESNO, timeout=30)
 
 	def keyBlue(self):
 		self.close(True)
 
-	def red_return(self, favname, favlink, answer):
+	def keyRedCB(self, favname, favlink, answer):
 		if answer is True:
 			self.writeFavorite(self.session, favname, favlink)
 
@@ -599,6 +571,8 @@ class openATVMain(openATVglobals):
 		self.maxpages = 1
 		self.oldthreadlink = ""
 		self.oldmenuindex = 0
+		self.menuindex = 0
+		self.threadindex = 0
 		self.postlist = []
 		self.threadlinks = []
 		self.maintexts = []
@@ -668,12 +642,7 @@ class openATVMain(openATVglobals):
 	def onLayoutFinished(self):
 		self.showPic(self["button_page"], join(self.PLUGINPATH, f"icons/key_updown_{self.RESOLUTION}.png"), show=False, scale=False)
 		self.showPic(self["button_keypad"], join(self.PLUGINPATH, f"icons/keypad_{self.RESOLUTION}.png"), show=False, scale=False)
-		if self.favmenu:
-			self["button_yellow"].hide()
-			self["key_yellow"].setText("")
-		else:
-			self["button_yellow"].show()
-			self["key_yellow"].setText("Favoriten aufrufen")
+		self.updateYellow()
 		if self.favlink or self.threadlink:
 			callInThread(self.makeThread)
 		else:
@@ -742,7 +711,7 @@ class openATVMain(openATVglobals):
 		if index:
 			self["menu"].setCurrentIndex(index)
 
-	def makeThread(self, movetoend=False):
+	def makeThread(self, index=None, movetoend=False):
 		self.currmode = "thread"
 		self["menu"].style = "thread"
 		self["menu"].updateList([])
@@ -767,7 +736,7 @@ class openATVMain(openATVglobals):
 			self.currpage = int(currpage) if currpage.isdigit() else 1
 			self.maxpages = self.currpage if maxpages < self.currpage else maxpages
 			posttitle = self.searchOneValue(r'<title>(.*?)</title>', cutout, "{kein Titel gefunden}").split(" - openATV Forum")[0]
-			posttitle = posttitle[:posttitle.find(" - Seite")]
+			posttitle = posttitle[:posttitle.find("- Seite")]
 			self["waiting"].stopBlinking()
 			self["headline"].setText(f"THEMA: {posttitle}")
 			self["pagecount"].setText(f"Seite {self.currpage} von {self.maxpages}")
@@ -793,15 +762,15 @@ class openATVMain(openATVglobals):
 				for element in findall(r'<a href=".*?"\s*class="postlink".*?">(.*?)</span></a>', signature, flags=S):
 					signature = sub(r'<a href=".*?"\s*class="postlink".*?">(.*?)</span></a>', f"{{Link: {element}}}", signature, count=1, flags=S)
 				if signature:
-					signature = sub(r'<span style="font-size.*?;line-height.*?">', '', signature)  # remove styles
+					signature = sub(r'<span style=.*?">(.*?)</span>', r'\g<1>', signature)  # remove styles
 					signature = "".join(signature.split("<br>\n<br>\n"))  # remove all multiple "<br>\n"
 					signature = "".join(signature.rsplit("<br>\n", 1))  # remove only last "<br>\n"
-					signature = f"{{Signatur: {signature}}}<br>"
-				fulldesc = self.searchOneValue(r'<div class="content">(.*?)\s*<div id=', post, "{keine Beschreibung}", flags=S)
+					signature = f"<br>{{Signatur: {signature}}}<br>"
+				fulldesc = self.searchOneValue(r'<div class="content">(.*?)<div id=', post, "{keine Beschreibung}", flags=S)
+				fulldesc = "".join(fulldesc.rsplit("</div>", 1))  # neccessarily remove last "</div>"
 				cngreason = self.searchOneValue(r'<em>(.*?)</em>', post, "kein Änderungsgrund angegeben")
 				cnguser, cngdate = self.searchTwoValues(r'<div class="notice">\s*Zuletzt geändert von <a href=".*?">(.*?)</a>(.*?)</div>', post, "", "", flags=S)
 				changes = f"Zuletzt geändert von {cnguser.strip()} {cngdate.replace("<br />", "").strip()}<br>Grund: {cngreason.strip()}" if cnguser and cngdate else ""
-				desc = fulldesc
 				desc = self.cleanupDescTags(f"{fulldesc}\n")
 				desc = f"{postnr}: {desc[:270]}{desc[270:desc.find(' ', 270)]}…" if len(desc) > 270 else f"{postnr}: {desc}"
 				fulldesc += f"<br>{signature}<br>{changes}"
@@ -816,7 +785,9 @@ class openATVMain(openATVglobals):
 			self.threadpics.append(["./icons/user_stat.png", False])
 			self.ready = True
 			self.updateSkin()
-			if movetoend:
+			if index:
+				self["menu"].setCurrentIndex(index)
+			elif movetoend:
 				self["menu"].goBottom()
 				self["menu"].goLineUp()
 
@@ -844,6 +815,14 @@ class openATVMain(openATVglobals):
 			self["button_keypad"].hide()
 			self["key_page"].setText("")
 			self["key_keypad"].setText("")
+
+	def updateYellow(self):
+		if self.favmenu:
+			self["button_yellow"].hide()
+			self["key_yellow"].setText("")
+		else:
+			self["button_yellow"].show()
+			self["key_yellow"].setText("Favoriten aufrufen")
 
 	def handleAvatar(self, url):
 		if url and url.startswith("./"):  # in case it's an plugin avatar
@@ -894,11 +873,12 @@ class openATVMain(openATVglobals):
 			if current < len(self.postlist):
 				postdetails = self.postlist[current]
 				if postdetails:
-					self.session.openWithCallback(self.Ok_return, openATVPost, postdetails, self.favmenu)
+					self.session.openWithCallback(self.keyOkCB, openATVPost, postdetails, self.favmenu)
 
-	def Ok_return(self, home=False):
+	def keyOkCB(self, home=False):
 		if home:
-			self.switchToMenuview()
+			self["menu"].updateList([])
+			callInThread(self.makeMenu)
 
 	def keyExit(self):
 		if self.currmode == "menu":
@@ -916,19 +896,22 @@ class openATVMain(openATVglobals):
 		if self.favoriteExists(self.session, favname, favlink):
 			self.session.open(MessageBox, f"ABBRUCH!\n\n'{favname}'\n\nist bereits in den Favoriten vorhanden.\n", type=MessageBox.TYPE_ERROR, timeout=5, close_on_any_key=True)
 		else:
-			self.session.openWithCallback(boundFunction(self.red_return, favname, favlink), MessageBox, f"'{favname}'\n\nzu den Favoriten hinzufügen?\n", MessageBox.TYPE_YESNO, timeout=30)
+			self.session.openWithCallback(boundFunction(self.keyRedCB, favname, favlink), MessageBox, f"'{favname}'\n\nzu den Favoriten hinzufügen?\n", MessageBox.TYPE_YESNO, timeout=30)
 
-	def red_return(self, favname, favlink, answer):
+	def keyRedCB(self, favname, favlink, answer):
 		if answer is True:
 			self.writeFavorite(self.session, favname, favlink)
 
 	def keyGreen(self):
 		if self.ready:
-			self["menu"].updateList([])
 			if self.currmode == "menu":
-				callInThread(self.makeMenu)
+				self.menuindex = self["menu"].getCurrentIndex()
+				self["menu"].updateList([])
+				callInThread(self.makeMenu, index=self.menuindex)
 			elif self.threadlink:
-				callInThread(self.makeThread)
+				self.threadindex = self["menu"].getCurrentIndex()
+				self["menu"].updateList([])
+				callInThread(self.makeThread, index=self.threadindex)
 
 	def keyYellow(self):
 		if self.favmenu:
@@ -936,13 +919,19 @@ class openATVMain(openATVglobals):
 		else:
 			self.favmenu = True
 			self.oldthreadlink = self.threadlink
-			self.session.openWithCallback(self.yellow_return, openATVFav)
+			self.session.openWithCallback(self.keyYellowCB, openATVFav)
 
-	def yellow_return(self):
-			self.threadlink = self.oldthreadlink
-			self.favmenu = False
+	def keyYellowCB(self, home=False):
+		self.threadlink = self.oldthreadlink
+		self.favmenu = False
+		self.updateYellow()
+		if home:
+			self["menu"].updateList([])
+			callInThread(self.makeMenu)
 
 	def keyBlue(self):
+		if self.favmenu:
+			self.close(True)
 		if self.currmode == "thread":
 			self.switchToMenuview()
 
