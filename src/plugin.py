@@ -740,10 +740,10 @@ class openATVMain(openATVglobals):
 			self["waiting"].stopBlinking()
 			self["headline"].setText(f"THEMA: {posttitle}")
 			self["pagecount"].setText(f"Seite {self.currpage} von {self.maxpages}")
-			for post in split(r'class="post has-profile bg', cutout, flags=S)[1:]:
+			for post in split(r'<div id="p\d{1,6}" class="post', cutout, flags=S)[1:]:  # 'p\d{1,6}' = 'p' followed by 1 to 6 digits
 				postid = self.searchOneValue(r'id="profile(.*?)"', post, "{n/v}")
 				postnr = self.searchOneValue(r'return false;">(.*?)</a></span>', post, "")
-				online = "online" in self.searchOneValue(r'<div id=".*?" class="post has-profile bg.*? (.*?)">', post, "")
+				online = "online" in self.searchOneValue(r'has-profile bg\d (.*?)">', post, "")
 				avatarlink = self.searchOneValue(r'<img class="avatar" src="./(.*?)"', post, "")
 				avatarlink = f"{self.BASEURL}{avatarlink}" if avatarlink else None
 				self.handleAvatar(avatarlink)  # trigger download of avatar
