@@ -54,14 +54,15 @@ class openATVglobals(Screen):
 			html = sub(r'\s+', ' ', html) if singleline else sub(r'\n+', '', html).strip()  # remove white spaces or multipe \n
 			html = html.replace("<br>", " ") if singleline else html.replace("<br>", "\n")
 			# special handling cites (blockquote)
+			html = sub(r'<div>.*?</div>', "", html, flags=S)  # unwrap '<div>' first
 			rhtml = f"----- {group1} hat geschrieben: -----{{Zitat Anfang}}"
 			rhtml = "{Zitat}" if singleline else f"{rhtml}{'-' * (111 - len(rhtml))}\n{group2}\n{'-' * 120}{{Zitat Ende}}-----\n"
-			html = sub(r'<blockquote.*?<div><cite><a href="./memberlist.php.*?">(.*?)</a>.*?<a href="./viewtopic.php.*?</a>.*?</cite>(.*?)</div></blockquote>', rhtml, html, flags=S)
+			html = sub(r'<blockquote.*?<cite><a href="./memberlist.php.*?">(.*?)</a>.*?<a href="./viewtopic.php.*?</a>.*?</cite>(.*?)</blockquote>', rhtml, html, flags=S)
 			# special handling attachments
 			html = sub(r'<div id=".*?" class="signature">(.*)</div>', f"{group1}\n", html, flags=S)
-			html = sub(r'<div class="inline-attachment">.*?title="(.*?)" />.*?</div>', '{Bild} ' if singleline else f'\n{{Anhang: {group1}}}\n', html, flags=S)
 			html = sub(r'<a href="./download/file.php.*?title="(.*?)" /></a>', '{Bild} ' if singleline else group1, html, flags=S)
 			html = sub(r'<dd>(.*?)</dd>', group1, html, flags=S)
+			html = sub(r'<dl class="file">(.*?)</dl>', '{Bild} ' if singleline else f"\n{group1}\n", html, flags=S)
 			html = sub(r'<dl class="thumbnail">(.*?)\s*</dl>', '{Bild} ' if singleline else f'\n{{Anhangy: {group1}}}', html, flags=S).replace("</dl>", "")
 			html = sub(r'<dl class="attachbox">.*?<dt>.*?</dt>', '', html, flags=S)
 			html = sub(r'<dt>(.*?)</dt>', group1, html)
@@ -71,14 +72,18 @@ class openATVglobals(Screen):
 			html = sub(r'<ol.*?</ol>', '{Auflistung}' if singleline else '{Auflistung}\n', html)
 			html = sub(r'<pre.*?">(.*?)</pre>', group1 if singleline else f"{group1}\n", html)
 			html = sub(r'<a href=.*?">(.*?)</a>', f"\n{{Link: {group1}}}\n", html)
+			html = sub(r'<dt class="attach-image">(.*?)</dt>', group1, html)
 			html = sub(r'<img src=.*?alt="(.*?)">', f'{{{group1}}}', html)
+			html = sub(r'<img src=.*?alt="(.*?)".*?/>', group1, html)
 			html = sub(r'<img.*?".*?alt="(.*?)".*?">', group1, html)
 			html = sub(r'<bdo dir="rtl">(.*?)</bdo>', group1, html)
+			html = sub(r'<br /><strong.*?">(.*?)</strong>', group1, html)
 			html = sub(r'<strong.*?">(.*?)</strong>', group1, html)
 			html = sub(r'<span.*?">(.*?)</span>', group1, html)
 			html = sub(r'<strong>(.*?)</strong>', group1, html)
 			html = sub(r'<div.*?>(.*?)</div>', group1, html)
 			html = sub(r'<em.*?">(.*?)</em>', group1, html)
+			html = sub(r"<div id='.*?'></div>", "", html)
 			html = sub(r'<code>(.*)</code>', group1, html)
 			html = sub(r'<em.*?>(.*?)</em>', group1, html)
 			html = sub(r'<p>(.*?)<.*?</p>', group1, html)
@@ -87,6 +92,7 @@ class openATVglobals(Screen):
 			html = sub(r'<pre>(.*?)</pre>', group1, html)
 			html = sub(r'<cite>.*?</cite>', '', html)
 			html = sub(r'<em>.*?</em>', '', html)
+			html = html.replace('</div><div class="notice">', ' ')  # remove residual waste
 			html = self.cleanupUserTags(html)
 		return html if singleline else f"{html}\n"
 
@@ -412,7 +418,6 @@ class openATVPost(openATVglobals):
 		self.posttitle = posttitle
 		self.postid = postid
 		self.postnr = postnr
-		desc = self.cleanupDescTags(fulldesc, singleline=False)
 		self.handleIcon(self["avatar"], avatarlink)
 		if userrank:
 			self.handleIcon(self["userrank"], userrank)
@@ -428,7 +433,7 @@ class openATVPost(openATVglobals):
 		self["residence"].setText(f"Wohnort:{residence}")
 		self["registered"].setText(f"Registriert seit {registered}")
 		self["datum"].setText(f"Beitrag von {date} Uhr")
-		self["textpage"].setText(desc)
+		self["textpage"].setText(fulldesc)
 
 	def handleIcon(self, widget, url):
 		if widget:
@@ -740,6 +745,7 @@ class openATVMain(openATVglobals):
 			self["waiting"].stopBlinking()
 			self["headline"].setText(f"THEMA: {posttitle}")
 			self["pagecount"].setText(f"Seite {self.currpage} von {self.maxpages}")
+			group1 = r'\g<1>'
 			for post in split(r'<div id="p\d{1,6}" class="post', cutout, flags=S)[1:]:  # 'p\d{1,6}' = 'p' followed by 1 to 6 digits
 				postid = self.searchOneValue(r'id="profile(.*?)"', post, "{n/v}")
 				postnr = self.searchOneValue(r'return false;">(.*?)</a></span>', post, "")
@@ -762,18 +768,21 @@ class openATVMain(openATVglobals):
 				for element in findall(r'<a href=".*?"\s*class="postlink".*?">(.*?)</span></a>', signature, flags=S):
 					signature = sub(r'<a href=".*?"\s*class="postlink".*?">(.*?)</span></a>', f"{{Link: {element}}}", signature, count=1, flags=S)
 				if signature:
-					signature = sub(r'<span style=.*?">(.*?)</span>', r'\g<1>', signature)  # remove styles
+					signature = sub(r'<span style=.*?">(.*?)</span>', group1, signature)  # remove styles
 					signature = "".join(signature.split("<br>\n<br>\n"))  # remove all multiple "<br>\n"
 					signature = "".join(signature.rsplit("<br>\n", 1))  # remove only last "<br>\n"
-					signature = f"<br>{{Signatur: {signature}}}<br>"
+					signature = self.cleanupDescTags(f"{{Signatur: {signature}}}")
+				post = sub(r'<div class="inline-attachment">.*?title="(.*?)" />.*?</div>', group1, post, flags=S)
+				post = sub(r'<div class="inline-attachment">(.*?)</div>', group1, post, flags=S)
 				fulldesc = self.searchOneValue(r'<div class="content">(.*?)<div id=', post, "{keine Beschreibung}", flags=S)
 				fulldesc = "".join(fulldesc.rsplit("</div>", 1))  # neccessarily remove last "</div>"
-				cngreason = self.searchOneValue(r'<em>(.*?)</em>', post, "kein Änderungsgrund angegeben")
+				fulldesc = self.cleanupDescTags(fulldesc, singleline=False)
+				post = sub(r"<div id='.*?'>", "", post)
 				cnguser, cngdate = self.searchTwoValues(r'<div class="notice">\s*Zuletzt geändert von <a href=".*?">(.*?)</a>(.*?)</div>', post, "", "", flags=S)
-				changes = f"Zuletzt geändert von {cnguser.strip()} {cngdate.replace("<br />", "").strip()}<br>Grund: {cngreason.strip()}" if cnguser and cngdate else ""
+				changes = f"Zuletzt geändert von {cnguser.strip()} {cngdate.strip()}" if cnguser and cngdate else ""
 				desc = self.cleanupDescTags(f"{fulldesc}\n")
 				desc = f"{postnr}: {desc[:270]}{desc[270:desc.find(' ', 270)]}…" if len(desc) > 270 else f"{postnr}: {desc}"
-				fulldesc += f"<br>{signature}<br>{changes}"
+				fulldesc += f"\n{signature}\n{changes}".replace("<br />", "<br>")
 				self.threadtexts.append([desc, date, username, postcnt])
 				self.threadpics.append([avatarlink, online])
 				self.postlist.append((posttitle, postid, postnr, avatarlink, online, username, usertitle, userrank, residence, postcnt, thxgiven, thxreceived, registered, date, fulldesc))
