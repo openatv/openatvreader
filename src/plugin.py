@@ -1009,9 +1009,10 @@ class openATVMain(openATVglobals):
 			if number > self.maxpages:
 				number = self.maxpages
 				self.session.open(MessageBox, f"\nEs sind nur {number} Seiten verfügbar, daher wird die letzte Seite aufgerufen.", MessageBox.TYPE_INFO, timeout=2, close_on_any_key=True)
-			threadid = parse_qs(urlparse(self.threadlink).query)['t'][0]
-			if threadid:
-				self.threadlink = f"{self.BASEURL}viewtopic.php?t={threadid}&start={(number - 1) * self.POSTSPERTHREAD}"
+			if self.currmode == "thread" and self.threadlink:
+				threadid = parse_qs(urlparse(self.threadlink).query)['t'][0]
+				if threadid:
+					self.threadlink = f"{self.BASEURL}viewtopic.php?t={threadid}&start={(number - 1) * self.POSTSPERTHREAD}"
 			callInThread(self.makeThread)
 
 	def checkFiles(self):
