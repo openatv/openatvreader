@@ -703,7 +703,7 @@ class openATVMain(openATVglobals):
 						stats.append(f"{answers} Antwort(en)")
 					stats = ", ".join(stats)
 					url = self.searchOneValue(r'<div class="list-inner">\s*<a href="./(.*?)" class="', post, "")  # e.g. viewtopic.php?t=66622&sid=a6b61343ae1c45fcd16fb8a172e1fd7f
-					threadid = parse_qs(urlparse(url).query)['t'][0]
+					threadid = parse_qs(urlparse(url).query)["t"][0]
 					self.threadlinks.append(f"{self.BASEURL}viewtopic.php?t={threadid}&start={answers // self.POSTSPERTHREAD * self.POSTSPERTHREAD}" if threadid else "")
 					self.maintexts.append([title, creation, forum, date, username, stats])
 					self.menupics.append([avatar, online])
@@ -983,8 +983,8 @@ class openATVMain(openATVglobals):
 			self.keyPageDown()
 		elif self.currmode == "thread" and self.currpage < self.maxpages:
 			self.currpage += 1
-			threadlink = self.threadlink if self.threadlink else self.threadlinks[self["menu"].getCurrentIndex() - 1]  # use url of previous entry when 'beteiligte Benutzer'
-			threadid = parse_qs(urlparse(threadlink).query)['t'][0]
+			threadlink = self.threadlink if self.threadlinks else self.threadlinks[self["menu"].getCurrentIndex() - 1]  # use url of previous entry when 'beteiligte Benutzer'
+			threadid = parse_qs(urlparse(threadlink).query)["t"][0]
 			if threadid:
 				self.threadlink = f"{self.BASEURL}viewtopic.php?t={threadid}&start={(self.currpage - 1) * self.POSTSPERTHREAD}"
 				callInThread(self.makeThread)
@@ -994,8 +994,8 @@ class openATVMain(openATVglobals):
 			self.keyPageUp()
 		elif self.currmode == "thread" and self.currpage > 1:
 			self.currpage -= 1
-			threadlink = self.threadlink if self.threadlink else self.threadlinks[self["menu"].getCurrentIndex() - 1]  # use url of previous entry when 'beteiligte Benutzer'
-			threadid = parse_qs(urlparse(threadlink).query)['t'][0]
+			threadlink = self.threadlink if self.threadlinks else self.threadlinks[self["menu"].getCurrentIndex() - 1]  # use url of previous entry when 'beteiligte Benutzer'
+			threadid = parse_qs(urlparse(threadlink).query)["t"][0]
 			if threadid:
 				self.threadlink = f"{self.BASEURL}viewtopic.php?t={threadid}&start={(self.currpage - 1) * self.POSTSPERTHREAD}"
 			callInThread(self.makeThread, movetoend=True)
@@ -1010,7 +1010,7 @@ class openATVMain(openATVglobals):
 				number = self.maxpages
 				self.session.open(MessageBox, f"\nEs sind nur {number} Seiten verfügbar, daher wird die letzte Seite aufgerufen.", MessageBox.TYPE_INFO, timeout=2, close_on_any_key=True)
 			if self.currmode == "thread" and self.threadlink:
-				threadid = parse_qs(urlparse(self.threadlink).query)['t'][0]
+				threadid = parse_qs(urlparse(self.threadlink).query)["t"][0]
 				if threadid:
 					self.threadlink = f"{self.BASEURL}viewtopic.php?t={threadid}&start={(number - 1) * self.POSTSPERTHREAD}"
 			callInThread(self.makeThread)
