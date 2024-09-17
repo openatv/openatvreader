@@ -48,16 +48,17 @@ class openATVglobals(Screen):
 		if html:
 			# ATTENTION: The order must not be changed!
 			group1, group2 = r'\g<1>', r'\g<2>'
-			# whitespacers
-			html = html.replace("\t", "")  # remove all tabs
-			html = "".join(html.split("<br>\n<br>\n"))  # remove only all multiple "<br>\n"
-			html = sub(r'\s+', ' ', html) if singleline else sub(r'\n+', '', html).strip()  # remove white spaces or multipe \n
-			html = html.replace("<br>", " ") if singleline else html.replace("<br>", "\n")
+			html = html.replace("\t", "")  # remove all tabs, they might be used as an separator later
+			html = html.replace("\n", " ").replace("<br />", " ") if singleline else html.replace("\n", "").replace("<br />", "")
+			# remove undesired linefeeds and spaces
+			html = "\n".join(list(filter(None, html.replace("<br>", "\t" if singleline else "\n").split("<br>"))))  # remove all or more than two <br>
+			html = " ".join(list(filter(None, html.replace(" ", "\t").split("\t"))))  # remove more than one spaces
 			# special handling cites (blockquote)
 			rhtml = f"----- {group1} hat geschrieben: -----{{Zitat Anfang}}"
 			rhtml = "{Zitat}" if singleline else f"{rhtml}{'-' * (111 - len(rhtml))}\n{group2}\n{'-' * 120}{{Zitat Ende}}-----\n"
 			html = sub(r'<blockquote cite=".*?"><div><cite><a href=".*?">(.*?)</a>.*?</cite>(.*?)</div></blockquote>', rhtml, html, flags=S)
 			html = sub(r'<blockquote.*?<cite><a href=".*?">(.*?)</a>.*?<a href="./viewtopic.php.*?</a>.*?</cite>(.*?)</blockquote>', rhtml, html, flags=S)
+			html = sub(r'<blockquote class="uncited"><div>(.*?)</div></blockquote>', group1, html, flags=S)
 			html = sub(r'<blockquote>(.*?)</blockquote>', group1, html, flags=S)
 			# special handling attachments
 			html = sub(r'<div id=".*?" class="signature">(.*)</div>', f'{group1}\n', html, flags=S)
@@ -79,10 +80,11 @@ class openATVglobals(Screen):
 			html = sub(r'<ol.*?</ol>', '{Auflistung}' if singleline else '{Auflistung}\n', html)
 			html = sub(r'<ul.*?</ul>', '{Auflistung}' if singleline else '{Auflistung}\n', html)
 			html = sub(r'<pre.*?">(.*?)</pre>', group1 if singleline else f'{group1}\n', html)
-			html = sub(r'<span style=".*?">(.*?)</span>', group1, html)
+			while search(r'<span style=".*?">(.*?)</span>', html):
+				html = sub(r'<span style=".*?">(.*?)</span>', group1, html)   # remove multiple styles
 			html = sub(r'<bdo dir="rtl">(.*?)</bdo>', group1, html)
-			html = sub(r'<br /><strong.*?">(.*?)</strong>', group1, html)
 			html = sub(r'<strong.*?">(.*?)</strong>', group1, html)
+			html = sub(r'<em class=".*?">(.*?)</em>', group1, html)
 			html = sub(r'<span.*?">(.*?)</span>', group1, html)
 			html = sub(r'<strong>(.*?)</strong>', group1, html)
 			html = sub(r'<div.*?>(.*?)</div>', group1, html)
@@ -772,9 +774,7 @@ class openATVMain(openATVglobals):
 				for element in findall(r'<a href=".*?"\s*class="postlink".*?">(.*?)</span></a>', signature, flags=S):
 					signature = sub(r'<a href=".*?"\s*class="postlink".*?">(.*?)</span></a>', f"{{Link: {element}}}", signature, count=1, flags=S)
 				if signature:
-					signature = sub(r'<span style=".*?">(.*?)</span>', group1, signature)  # remove styles
-					signature = "".join(signature.split("<br>\n<br>\n"))  # remove all multiple "<br>\n"
-					signature = "".join(signature.rsplit("<br>\n", 1))  # remove only last "<br>\n"
+					signature = signature.replace("<br>", "").replace("\n", "")
 					signature = self.cleanupDescTags(f"{{Signatur: {signature}}}")
 				post = sub(r'<div class="inline-attachment">.*?title="(.*?)" />.*?</div>', group1, post, flags=S)
 				post = sub(r'<div class="inline-attachment">(.*?)</div>', group1, post, flags=S)
@@ -783,9 +783,9 @@ class openATVMain(openATVglobals):
 				cnguser, cngdate = self.searchTwoValues(r'<div class="notice">\s*Zuletzt geändert von <a href=".*?">(.*?)</a>(.*?)</div>', post, "", "", flags=S)
 				changes = f"Zuletzt geändert von {cnguser.strip()} {cngdate.strip()}" if cnguser and cngdate else ""
 				desc = self.cleanupDescTags(f"{fulldesc}\n")
-				desc = f"{postnr}: {desc[:270]}{desc[270:desc.find(' ', 270)]}…" if len(desc) > 270 else f"{postnr}: {desc}"
-				fulldesc = self.cleanupDescTags(fulldesc, singleline=False)
-				fulldesc += f"\n{signature}\n{changes}".replace("<br />", "<br>")
+				desc = f"{postnr}: {desc[:255]}{desc[255:desc.find(' ', 255)]}…" if len(desc) > 255 else f"{postnr}: {desc}"
+				fulldesc = self.cleanupDescTags(fulldesc, singleline=False).strip()
+				fulldesc += f"\n\n{signature}\n{changes}".replace("<br />", "<br>")
 				self.threadtexts.append([desc, date, username, postcnt])
 				self.threadpics.append([avatarlink, online])
 				self.postlist.append((posttitle, postid, postnr, avatarlink, online, username, usertitle, userrank, residence, postcnt, thxgiven, thxreceived, registered, date, fulldesc))
@@ -983,7 +983,7 @@ class openATVMain(openATVglobals):
 			self.keyPageDown()
 		elif self.currmode == "thread" and self.currpage < self.maxpages:
 			self.currpage += 1
-			threadlink = self.threadlink if self.threadlinks else self.threadlinks[self["menu"].getCurrentIndex() - 1]  # use url of previous entry when 'beteiligte Benutzer'
+			threadlink = self.threadlink if self.threadlink else self.threadlinks[self["menu"].getCurrentIndex() - 1]  # use url of previous entry when 'beteiligte Benutzer'
 			threadid = parse_qs(urlparse(threadlink).query)["t"][0]
 			if threadid:
 				self.threadlink = f"{self.BASEURL}viewtopic.php?t={threadid}&start={(self.currpage - 1) * self.POSTSPERTHREAD}"
@@ -994,7 +994,7 @@ class openATVMain(openATVglobals):
 			self.keyPageUp()
 		elif self.currmode == "thread" and self.currpage > 1:
 			self.currpage -= 1
-			threadlink = self.threadlink if self.threadlinks else self.threadlinks[self["menu"].getCurrentIndex() - 1]  # use url of previous entry when 'beteiligte Benutzer'
+			threadlink = self.threadlink if self.threadlink else self.threadlinks[self["menu"].getCurrentIndex() - 1]  # use url of previous entry when 'beteiligte Benutzer'
 			threadid = parse_qs(urlparse(threadlink).query)["t"][0]
 			if threadid:
 				self.threadlink = f"{self.BASEURL}viewtopic.php?t={threadid}&start={(self.currpage - 1) * self.POSTSPERTHREAD}"
