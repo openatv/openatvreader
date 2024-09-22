@@ -29,7 +29,7 @@ from Plugins.Plugin import PluginDescriptor
 from Screens.MessageBox import MessageBox
 from Screens.Screen import Screen
 from Tools.BoundFunction import boundFunction
-from Tools.Directories import resolveFilename, SCOPE_PLUGINS
+from Tools.Directories import resolveFilename, SCOPE_PLUGINS, SCOPE_CONFIG
 from Tools.LoadPixmap import LoadPixmap
 
 
@@ -37,21 +37,22 @@ class openATVglobals(Screen):
 	VERSION = "V2.0"
 	BASEURL = "https://www.opena.tv/"
 	AVATARPATH = "/tmp/avatare"
-	PLUGINPATH = join(resolveFilename(SCOPE_PLUGINS), "Extensions/OpenATVreader/")
-	FAVORITEN = join(PLUGINPATH, "db/favoriten")
+	PLUGINPATH = resolveFilename(SCOPE_PLUGINS, "Extensions/OpenATVreader/")
+	FAVORITEN = resolveFilename(SCOPE_CONFIG, "openatvreader_fav.dat")
 	RESOLUTION = "fHD" if getDesktop(0).size().width() > 1300 else "HD"
 	POSTSPERMAIN = 5
 	POSTSPERTHREAD = 20
 	MODULE_NAME = __name__.split(".")[-2]
 
-	def cleanupDescTags(self, html, singleline=True):  # singleline=True mercilessly cuts the html down to a minimum for MultiContentEntryLines
+	def cleanupDescTags(self, html, singleline=False):  # singleline=True: mercilessly cuts the html down to a minimum for MultiContentEntryLines
 		if html:
 			# ATTENTION: The order must not be changed!
 			group1, group2 = r'\g<1>', r'\g<2>'
 			html = html.replace("\t", "")  # remove all tabs, they might be used as an separator later
 			html = html.replace("\n", " ").replace("<br />", " ") if singleline else html.replace("\n", "").replace("<br />", "")
 			# remove undesired linefeeds and spaces
-			html = "\n".join(list(filter(None, html.replace("<br>", "\t" if singleline else "\n").split("<br>"))))  # remove all or more than two <br>
+			separator = "\t" if singleline else "\n"
+			html = "\n".join(list(filter(None, html.replace("<br>", separator).split(separator))))  # remove all or more than two <br>
 			html = " ".join(list(filter(None, html.replace(" ", "\t").split("\t"))))  # remove more than one spaces
 			# special handling cites (blockquote)
 			rhtml = f"----- {group1} hat geschrieben: -----{{Zitat Anfang}}"
@@ -64,13 +65,17 @@ class openATVglobals(Screen):
 			html = sub(r'<div id=".*?" class="signature">(.*)</div>', f'{group1}\n', html, flags=S)
 			html = sub(r'<a href="./download/file.php.*?title="(.*?)" /></a>', '{Bild} ' if singleline else group1, html, flags=S)
 			html = sub(r'<dd>(.*?)</dd>', group1, html, flags=S)
-			html = sub(r'<dl class="file">(.*?)</dl>', '{Bild} ' if singleline else f'\n{group1}\n', html, flags=S)
+			html = sub(r'<dl class="file">(.*?)</dl>', '{Anhang} ' if singleline else f'\n{group1}\n', html, flags=S)
 			html = sub(r'<dl class="thumbnail">(.*?)\s*</dl>', '{Bild} ' if singleline else f'\n{{Anhangy: {group1}}}', html, flags=S).replace("</dl>", "")
 			html = sub(r'<div class="codebox">.*?</pre></div>(.*?)</div>', '{Code} ' if singleline else f'\n{{Code}}\n{group1}', html)
 			html = sub(r'<dl class="attachbox">.*?<dt>.*?</dt>', '', html, flags=S)
+			html = sub(r'<span class=.*?</a>', '', html)
 			html = sub(r'<dt>(.*?)</dt>', group1, html)
 			# general unwrappers
-			html = sub(r'<a href=.*?">(.*?)</a>', '{Link} ' if singleline else f'\n{{Link: {group1}}}\n', html)
+			while search(r'<span style=".*?">(.*?)</span>', html):
+				html = sub(r'<span style=".*?">(.*?)</span>', group1, html)   # remove multiple styles
+			html = sub(r'<img class="smilies".*?alt="(.*?)".*?">', '{Emoicon} ' if singleline else group1, html)
+			html = sub(r'<a href=.*?">(.*?)</a>', '{Link} ' if singleline else f'\n{group1}\n', html)
 			html = sub(r'<img alt="(.*?)" class="emoji smilies" draggable="false" src=".*?">', '', html)
 			html = sub(r'<dt class="attach-image">(.*?)</dt>', '{Bild} ' if singleline else group1, html)
 			html = sub(r'<img src=.*?alt="(.*?)">', '{Bild} ' if singleline else f'{{{group1}}}', html)
@@ -252,7 +257,8 @@ class openATVFav(openATVglobals):
 		<widget source="key_blue" render="Label" position="666,502" size="180,38" zPosition="1" valign="center" font="Regular;18" halign="left" foregroundColor="#00b3b3b3" backgroundColor="#1A0F0F0F" transparent="1" />
 	</screen>"""
 
-	def __init__(self, session):
+	def __init__(self, session, threadlinks):
+		self.threadlinks = threadlinks
 		if self.RESOLUTION == "fHD":
 			self.skin = self.skin.replace("_HD.png", "_fHD.png")
 		Screen.__init__(self, session, self.skin)
@@ -300,7 +306,7 @@ class openATVFav(openATVglobals):
 		if self.favlist:
 			favlink = self.favlist[curridx][1]
 			if favlink:
-					self.session.openWithCallback(self.keyOkCB, openATVMain, favlink=favlink, favmenu=True)
+					self.session.openWithCallback(self.keyOkCB, openATVMain, threadlinks=self.threadlinks, favlink=favlink, favmenu=True)
 
 	def keyOkCB(self, home=False):
 		if home:
@@ -320,7 +326,7 @@ class openATVFav(openATVglobals):
 			try:
 				with open(self.FAVORITEN, "r") as f:
 					for line in f.read().split("\n"):
-						if favlink not in line and line != "\n":
+						if favlink not in line and line != "\n" and line != "":
 							data += f"{line}{linesep}"
 			except OSError as error:
 				self.session.open(MessageBox, f"Favoriten konnten nicht gelesen werden:\n'{error}'", type=MessageBox.TYPE_INFO, timeout=2, close_on_any_key=True)
@@ -369,16 +375,17 @@ class openATVPost(openATVglobals):
 		<ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_yellow_HD.png" position="434,636" size="26,38" alphatest="blend" />
 		<ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_blue_HD.png" position="644,636" size="26,38" alphatest="blend" />
 		<widget source="key_red" render="Label" position="36,636" size="180,38" zPosition="1" valign="center" font="Regular;18" halign="left" foregroundColor="#00b3b3b3" backgroundColor="#1A0F0F0F" transparent="1" />
-		<widget source="key_blue" render="Label" position="666,636" size="180,38" zPosition="1" valign="center" font="Regular;18" halign="left" foregroundColor="#00b3b3b3" backgroundColor="#1A0F0F0F" transparent="1" />
+		<widget source="key_yellow" render="Label" position="456,636" size="180,38" zPosition="1" valign="center" font="Regular;18" halign="left" foregroundColor="#00b3b3b3" backgroundColor="#1A0F0F0F" transparent="1" />
 		<widget source="key_blue" render="Label" position="666,636" size="180,38" zPosition="1" valign="center" font="Regular;18" halign="left" foregroundColor="#00b3b3b3" backgroundColor="#1A0F0F0F" transparent="1" />
 	</screen>"""
 
-	def __init__(self, session, postdetails, favmenu):
+	def __init__(self, session, postdetails, favmenu, threadlinks):
 		if self.RESOLUTION == "fHD":
 			self.skin = self.skin.replace("_HD.png", "_fHD.png")
 		Screen.__init__(self, session, self.skin)
 		self.postdetails = postdetails
 		self.favmenu = favmenu
+		self.threadlinks = threadlinks
 		self.posttitle = ""
 		self.postid = ""
 		self.postnr = ""
@@ -424,6 +431,7 @@ class openATVPost(openATVglobals):
 		self.posttitle = posttitle
 		self.postid = postid
 		self.postnr = postnr
+		self.username = username
 		self.handleIcon(self["avatar"], avatarlink)
 		if userrank:
 			self.handleIcon(self["userrank"], userrank)
@@ -472,17 +480,17 @@ class openATVPost(openATVglobals):
 
 	def keyYellow(self):
 		if self.favmenu:
-			self.session.open(MessageBox, "Dieses Fenster wurde bereits als Favorit geöffnet!\nUm auf die Favoritenliste zurückzukommen, bitte '2x Verlassen/Exit' drücken!\n", type=MessageBox.TYPE_INFO, timeout=5, close_on_any_key=True)
+			self.session.open(MessageBox, "Dieses Fenster wurde bereits als Favorit geöffnet!\nUm auf die Favoritenliste zurückzukommen, bitte 2x 'Verlassen/Exit' drücken!\n", type=MessageBox.TYPE_INFO, timeout=5, close_on_any_key=True)
 		else:
-			self.session.openWithCallback(self.keyYellowCB, openATVFav)
+			self.session.openWithCallback(self.keyYellowCB, openATVFav, self.threadlinks)
 
 	def keyYellowCB(self, home=False):
 		if home:
 			self.close(True)
 
 	def keyRed(self):
-		favname = f"POST #{self.postnr} von '{self.posttitle}'"
-		favlink = f"{self.BASEURL}/viewtopic.php?p={self.postid}#p{self.postid}"  # postlink, e.g. https://www.opena.tv/viewtopic.php?p=570564#p570564
+		favname = f"BEITRAG #{self.postnr} von '{self.username}' in '{self.posttitle}'"
+		favlink = f"{self.BASEURL}viewtopic.php?p={self.postid}#p{self.postid}"  # postlink, e.g. https://www.opena.tv/viewtopic.php?p=570564#p570564
 		if self.favoriteExists(self.session, favname, favlink):
 			self.session.open(MessageBox, f"ABBRUCH!\n\n'{favname}'\n\nist bereits in den Favoriten vorhanden.\n", type=MessageBox.TYPE_ERROR, timeout=5, close_on_any_key=True)
 		else:
@@ -516,7 +524,7 @@ class openATVMain(openATVglobals):
 	<screen name="openATVMain" position="center,center" size="1233,680" backgroundColor="#1A0F0F0F" resolution="1280,720" title=" ">
 		<ePixmap position="10,10" size="300,50" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/openATV_HD.png" alphatest="blend" zPosition="1" />
 		<widget source="version" render="Label" position="290,36" size="43,21" font="Regular;16" halign="left" valign="center" foregroundColor="grey" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1" />
-		<widget source="headline" render="Label" position="340,29" size="640,30" font="Regular;24" halign="left" valign="bottom" wrap="ellipsis" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1" />
+		<widget source="headline" render="Label" position="340,29" size="610,30" font="Regular;24" halign="left" valign="bottom" wrap="ellipsis" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1" />
 		<widget name="waiting" position="340,29" size="750,30" font="Regular;20" halign="left" valign="bottom" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1" />
 		<widget source="global.CurrentTime" render="Label" position="1080,10" size="130,28" font="Regular;28" noWrap="1" halign="right" valign="top" foregroundColor="#00FFFFFF" backgroundColor="#1A0F0F0F" transparent="1">
 			<convert type="ClockToText">Default</convert>
@@ -569,15 +577,16 @@ class openATVMain(openATVglobals):
 		<widget source="key_keypad" render="Label" position="1066,636" size="200,38" font="Regular;18" foregroundColor="grey" backgroundColor="#1A0F0F0F" transparent="1" halign="left" valign="center" />
 	</screen>"""
 
-	def __init__(self, session, favlink="", favmenu=False):
+	def __init__(self, session, threadlinks=[], favlink="", favmenu=False):
 		if self.RESOLUTION == "fHD":
 			self.skin = self.skin.replace("_HD.png", "_fHD.png")
 		Screen.__init__(self, session, self.skin)
+		self.threadlinks = threadlinks  # required when called by OpenATVFav
 		self.favlink = favlink
+		self.favmenu = favmenu
 		self.threadlink = ""
 		self.currmode = "menu"
 		self.ready = False
-		self.favmenu = favmenu
 		self.currpage = 1
 		self.maxpages = 1
 		self.oldthreadlink = ""
@@ -585,14 +594,13 @@ class openATVMain(openATVglobals):
 		self.menuindex = 0
 		self.threadindex = 0
 		self.postlist = []
-		self.threadlinks = []
 		self.maintexts = []
 		self.threadtexts = []
 		self.menupics = []
 		self.threadpics = []
 		self.avatarDLlist = []
 		self["version"] = StaticText(self.VERSION)
-		self["headline"] = StaticText()
+		self["headline"] = StaticText("")
 		self["waiting"] = BlinkingLabel("bitte warten...")
 		self["waiting"].startBlinking()
 		self["waiting"].show()
@@ -653,8 +661,8 @@ class openATVMain(openATVglobals):
 	def onLayoutFinished(self):
 		self.showPic(self["button_page"], join(self.PLUGINPATH, f"icons/key_updown_{self.RESOLUTION}.png"), show=False, scale=False)
 		self.showPic(self["button_keypad"], join(self.PLUGINPATH, f"icons/keypad_{self.RESOLUTION}.png"), show=False, scale=False)
-		self.updateYellow()
-		if self.favlink or self.threadlink:
+		self.updateYellowButton()
+		if self.favlink or self.threadlink and self.threadlinks:
 			callInThread(self.makeThread)
 		else:
 			callInThread(self.makeMenu)
@@ -705,7 +713,7 @@ class openATVMain(openATVglobals):
 						stats.append(f"{answers} Antwort(en)")
 					stats = ", ".join(stats)
 					url = self.searchOneValue(r'<div class="list-inner">\s*<a href="./(.*?)" class="', post, "")  # e.g. viewtopic.php?t=66622&sid=a6b61343ae1c45fcd16fb8a172e1fd7f
-					threadid = parse_qs(urlparse(url).query)["t"][0]
+					threadid = parse_qs(urlparse(url).query)["t"][0] if "t=" in url else ""
 					self.threadlinks.append(f"{self.BASEURL}viewtopic.php?t={threadid}&start={answers // self.POSTSPERTHREAD * self.POSTSPERTHREAD}" if threadid else "")
 					self.maintexts.append([title, creation, forum, date, username, stats])
 					self.menupics.append([avatar, online])
@@ -740,6 +748,8 @@ class openATVMain(openATVglobals):
 		if output:
 			endpos = output.find('<div class="action-bar actions-jump">')
 			cutout = unescape(output[:endpos])
+			if self.favmenu:
+				self.threadlink = self.searchOneValue(r'<link rel="canonical" href="(.*?)">', cutout, "")
 			maxpages = findall(r'<li><a class="button" href=".*?" role="button">(.*?)</a></li>', cutout)
 			maxpages = maxpages[-1] if maxpages else "1"
 			currpage = self.searchOneValue(r'<li class="active"><span>(.*?)</span></li>', cutout, "")
@@ -747,7 +757,7 @@ class openATVMain(openATVglobals):
 			self.currpage = int(currpage) if currpage.isdigit() else 1
 			self.maxpages = self.currpage if maxpages < self.currpage else maxpages
 			posttitle = self.searchOneValue(r'<title>(.*?)</title>', cutout, "{kein Titel gefunden}").split(" - openATV Forum")[0]
-			posttitle = posttitle[:posttitle.find("- Seite")]
+			posttitle = posttitle[:posttitle.find("- Seite")].strip() if "- Seite" in posttitle else posttitle.strip()
 			self["waiting"].stopBlinking()
 			self["headline"].setText(f"THEMA: {posttitle}")
 			self["pagecount"].setText(f"Seite {self.currpage} von {self.maxpages}")
@@ -773,18 +783,16 @@ class openATVMain(openATVglobals):
 				signature = self.searchOneValue(r'<div id=".*?" class="signature">(.*?)\s*</div>', post, "", flags=S)
 				for element in findall(r'<a href=".*?"\s*class="postlink".*?">(.*?)</span></a>', signature, flags=S):
 					signature = sub(r'<a href=".*?"\s*class="postlink".*?">(.*?)</span></a>', f"{{Link: {element}}}", signature, count=1, flags=S)
-				if signature:
-					signature = signature.replace("<br>", "").replace("\n", "")
-					signature = self.cleanupDescTags(f"{{Signatur: {signature}}}")
+				signature = self.cleanupDescTags(f"{{Signatur: {signature}}}") if signature else ""
 				post = sub(r'<div class="inline-attachment">.*?title="(.*?)" />.*?</div>', group1, post, flags=S)
 				post = sub(r'<div class="inline-attachment">(.*?)</div>', group1, post, flags=S)
 				fulldesc = self.searchOneValue(r'<div class="content">(.*?)<div id=', post, "{keine Beschreibung}", flags=S)
 				post = sub(r"<div id='.*?'>", "", post)
 				cnguser, cngdate = self.searchTwoValues(r'<div class="notice">\s*Zuletzt geändert von <a href=".*?">(.*?)</a>(.*?)</div>', post, "", "", flags=S)
-				changes = f"Zuletzt geändert von {cnguser.strip()} {cngdate.strip()}" if cnguser and cngdate else ""
-				desc = self.cleanupDescTags(f"{fulldesc}\n")
+				changes = self.cleanupDescTags(f"Zuletzt geändert von {cnguser.strip()} {cngdate.strip()}" if cnguser and cngdate else "")
+				desc = self.cleanupDescTags(f"{fulldesc}\n", singleline=True)
 				desc = f"{postnr}: {desc[:255]}{desc[255:desc.find(' ', 255)]}…" if len(desc) > 255 else f"{postnr}: {desc}"
-				fulldesc = self.cleanupDescTags(fulldesc, singleline=False).strip()
+				fulldesc = self.cleanupDescTags(fulldesc).strip()
 				fulldesc += f"\n\n{signature}\n{changes}".replace("<br />", "<br>")
 				self.threadtexts.append([desc, date, username, postcnt])
 				self.threadpics.append([avatarlink, online])
@@ -797,11 +805,16 @@ class openATVMain(openATVglobals):
 			self.threadpics.append(["./icons/user_stat.png", False])
 			self.ready = True
 			self.updateSkin()
+			if self.favmenu and self.favlink:
+				favid = parse_qs(urlparse(self.favlink).query)["p"][0] if "p=" in self.favlink else ""
+				hitlist = [item for item in self.postlist if item[1] == favid]
+				index = self.postlist.index(hitlist[0]) if hitlist else 0
+				self.favlink = ""
 			if index:
 				self["menu"].setCurrentIndex(index)
 			elif movetoend:
 				self["menu"].goBottom()
-				self["menu"].goLineUp()
+				self["menu"].goLineUp()  # last entry is always the summary 'beteiligte Benutzer'
 
 	def updateSkin(self):
 		skinpix = []
@@ -828,7 +841,7 @@ class openATVMain(openATVglobals):
 			self["key_page"].setText("")
 			self["key_keypad"].setText("")
 
-	def updateYellow(self):
+	def updateYellowButton(self):
 		if self.favmenu:
 			self["button_yellow"].hide()
 			self["key_yellow"].setText("")
@@ -885,7 +898,7 @@ class openATVMain(openATVglobals):
 			if current < len(self.postlist):
 				postdetails = self.postlist[current]
 				if postdetails:
-					self.session.openWithCallback(self.keyOkCB, openATVPost, postdetails, self.favmenu)
+					self.session.openWithCallback(self.keyOkCB, openATVPost, postdetails, self.favmenu, self.threadlinks)
 
 	def keyOkCB(self, home=False):
 		if home:
@@ -899,6 +912,8 @@ class openATVMain(openATVglobals):
 			self.close()
 		if self.currmode == "thread":
 			if self.favmenu:
+				self.favmenu = False
+				self.favlink = ""
 				self.close()
 			else:
 				self.switchToMenuview()
@@ -931,12 +946,13 @@ class openATVMain(openATVglobals):
 		else:
 			self.favmenu = True
 			self.oldthreadlink = self.threadlink
-			self.session.openWithCallback(self.keyYellowCB, openATVFav)
+			self.session.openWithCallback(self.keyYellowCB, openATVFav, self.threadlinks)
 
 	def keyYellowCB(self, home=False):
-		self.threadlink = self.oldthreadlink
 		self.favmenu = False
-		self.updateYellow()
+		self.favlink = ""
+		self.threadlink = self.oldthreadlink
+		self.updateYellowButton()
 		if home:
 			self["menu"].updateList([])
 			callInThread(self.makeMenu)
@@ -962,8 +978,8 @@ class openATVMain(openATVglobals):
 			favname = f"THEMA: {self.maintexts[curridx][0]}"
 			favlink = self.threadlinks[curridx]  # threadlink, e.g. https://www.opena.tv/viewtopic.php?t=66608&start=0
 		elif self.currmode == "thread" and self.postlist:
-			favname = f"BEITRAG{self.postlist[curridx][2]} von '{self.postlist[curridx][0]}'"
-			favlink = f"{self.BASEURL}/viewtopic.php?p={self.postlist[curridx][1]}#p{self.postlist[curridx][1]}"  # postlink, e.g. https://www.opena.tv/viewtopic.php?p=570564#p570564
+			favname = f"BEITRAG {self.postlist[curridx][2]} von '{self.postlist[curridx][5]} 'in '{self.postlist[curridx][0]}'"
+			favlink = f"{self.BASEURL}viewtopic.php?p={self.postlist[curridx][1]}#p{self.postlist[curridx][1]}"  # postlink, e.g. https://www.opena.tv/viewtopic.php?p=570564#p570564
 		return favname, favlink
 
 	def keyDown(self):
@@ -984,7 +1000,7 @@ class openATVMain(openATVglobals):
 		elif self.currmode == "thread" and self.currpage < self.maxpages:
 			self.currpage += 1
 			threadlink = self.threadlink if self.threadlink else self.threadlinks[self["menu"].getCurrentIndex() - 1]  # use url of previous entry when 'beteiligte Benutzer'
-			threadid = parse_qs(urlparse(threadlink).query)["t"][0]
+			threadid = parse_qs(urlparse(threadlink).query)["t"][0] if "t=" in threadlink else ""
 			if threadid:
 				self.threadlink = f"{self.BASEURL}viewtopic.php?t={threadid}&start={(self.currpage - 1) * self.POSTSPERTHREAD}"
 				callInThread(self.makeThread)
@@ -995,10 +1011,10 @@ class openATVMain(openATVglobals):
 		elif self.currmode == "thread" and self.currpage > 1:
 			self.currpage -= 1
 			threadlink = self.threadlink if self.threadlink else self.threadlinks[self["menu"].getCurrentIndex() - 1]  # use url of previous entry when 'beteiligte Benutzer'
-			threadid = parse_qs(urlparse(threadlink).query)["t"][0]
+			threadid = parse_qs(urlparse(threadlink).query)["t"][0] if "t=" in threadlink else ""
 			if threadid:
 				self.threadlink = f"{self.BASEURL}viewtopic.php?t={threadid}&start={(self.currpage - 1) * self.POSTSPERTHREAD}"
-			callInThread(self.makeThread, movetoend=True)
+				callInThread(self.makeThread, movetoend=True)
 
 	def gotoPage(self, number):
 		if self.currmode == "thread":
@@ -1010,10 +1026,10 @@ class openATVMain(openATVglobals):
 				number = self.maxpages
 				self.session.open(MessageBox, f"\nEs sind nur {number} Seiten verfügbar, daher wird die letzte Seite aufgerufen.", MessageBox.TYPE_INFO, timeout=2, close_on_any_key=True)
 			if self.currmode == "thread" and self.threadlink:
-				threadid = parse_qs(urlparse(self.threadlink).query)["t"][0]
+				threadid = parse_qs(urlparse(self.threadlink).query)["t"][0] if "t=" in self.threadlink else ""
 				if threadid:
 					self.threadlink = f"{self.BASEURL}viewtopic.php?t={threadid}&start={(number - 1) * self.POSTSPERTHREAD}"
-			callInThread(self.makeThread)
+					callInThread(self.makeThread)
 
 	def checkFiles(self):
 		try:
