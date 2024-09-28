@@ -51,8 +51,9 @@ class openATVglobals(Screen):
 			html = html.replace("\t", "")  # remove all tabs, they might be used as an separator later
 			html = html.replace("\n", " ").replace("<br />", " ") if singleline else html.replace("\n", "").replace("<br />", "")
 			# remove undesired linefeeds and spaces
+			spacer = " " if singleline else "\n"
 			separator = "\t" if singleline else "\n"
-			html = "\n".join(list(filter(None, html.replace("<br>", separator).split(separator))))  # remove all or more than two <br>
+			html = spacer.join(list(filter(None, html.replace("<br>", separator).split(separator))))  # remove all or more than two <br>
 			html = " ".join(list(filter(None, html.replace(" ", "\t").split("\t"))))  # remove more than one spaces
 			# special handling cites (blockquote)
 			rhtml = f"----- {group1} hat geschrieben: -----{{Zitat Anfang}}"
@@ -63,10 +64,10 @@ class openATVglobals(Screen):
 			html = sub(r'<blockquote>(.*?)</blockquote>', group1, html, flags=S)
 			# special handling attachments
 			html = sub(r'<div id=".*?" class="signature">(.*)</div>', f'{group1}\n', html, flags=S)
-			html = sub(r'<a href="./download/file.php.*?title="(.*?)" /></a>', '{Bild} ' if singleline else group1, html, flags=S)
+			html = sub(r'<a href="./download/file.php.*?title="(.*?)" /></a>', '{Bild} ' if singleline else f'{group1}', html, flags=S)
 			html = sub(r'<dd>(.*?)</dd>', group1, html, flags=S)
-			html = sub(r'<dl class="file">(.*?)</dl>', '{Anhang} ' if singleline else f'\n{group1}\n', html, flags=S)
-			html = sub(r'<dl class="thumbnail">(.*?)\s*</dl>', '{Bild} ' if singleline else f'\n{{Anhangy: {group1}}}', html, flags=S).replace("</dl>", "")
+			html = sub(r'<dl class="file">(.*?)</dl>', '{Anhang} ' if singleline else f'\n{{Anhang: {group1}}}\n', html, flags=S)
+			html = sub(r'<dl class="thumbnail">(.*?)\s*</dl>', '{Bild} ' if singleline else f'\n{{Bild: {group1}}}', html, flags=S).replace("</dl>", "")
 			html = sub(r'<div class="codebox">.*?</pre></div>(.*?)</div>', '{Code} ' if singleline else f'\n{{Code}}\n{group1}', html)
 			html = sub(r'<dl class="attachbox">.*?<dt>.*?</dt>', '', html, flags=S)
 			html = sub(r'<span class=.*?</a>', '', html)
@@ -74,13 +75,13 @@ class openATVglobals(Screen):
 			# general unwrappers
 			while search(r'<span style=".*?">(.*?)</span>', html):
 				html = sub(r'<span style=".*?">(.*?)</span>', group1, html)   # remove multiple styles
-			html = sub(r'<img class="smilies".*?alt="(.*?)".*?">', '{Emoicon} ' if singleline else group1, html)
-			html = sub(r'<a href=.*?">(.*?)</a>', '{Link} ' if singleline else f'\n{group1}\n', html)
+			html = sub(r'<img class="smilies".*?alt="(.*?)".*?">', '{Emoicon} ' if singleline else f'{{Emoicon: {group1}}}', html)
+			html = sub(r'<a href=.*?">(.*?)</a>', '{Link} ' if singleline else f'{group1}', html)
 			html = sub(r'<img alt="(.*?)" class="emoji smilies" draggable="false" src=".*?">', '', html)
-			html = sub(r'<dt class="attach-image">(.*?)</dt>', '{Bild} ' if singleline else group1, html)
-			html = sub(r'<img src=.*?alt="(.*?)">', '{Bild} ' if singleline else f'{{{group1}}}', html)
-			html = sub(r'<img src=.*?alt="(.*?)".*?/>', '{Bild} ' if singleline else group1, html)
-			html = sub(r'<img.*?".*?alt="(.*?)".*?">', '{Bild} ' if singleline else group1, html)
+			html = sub(r'<dt class="attach-image">(.*?)</dt>', '{Bild} ' if singleline else f'{{Bild: {group1}}}', html)
+			html = sub(r'<img src=.*?alt="(.*?)">', '{Bild} ' if singleline else f'{{Bild: {group1}}}', html)
+			html = sub(r'<img src=.*?alt="(.*?)".*?/>', '{Bild} ' if singleline else f'{{Bild: {group1}}}', html)
+			html = sub(r'<img.*?".*?alt="(.*?)".*?">', '{Bild} ' if singleline else f'{{Bild: {group1}}}', html)
 			html = sub(r'<table.*?">.*?</table>', '{Tabelle}' if singleline else '{Tabelle}\n', html)
 			html = sub(r'<ol.*?</ol>', '{Auflistung}' if singleline else '{Auflistung}\n', html)
 			html = sub(r'<ul.*?</ul>', '{Auflistung}' if singleline else '{Auflistung}\n', html)
@@ -441,7 +442,7 @@ class openATVPost(openATVglobals):
 		self["postnr"].setText(postnr)
 		self["username"].setText(username)
 		self["usertitle"].setText(usertitle)
-		self["postcnt"].setText(f"{postcnt} Beiträge")
+		self["postcnt"].setText(postcnt)
 		self["thxgiven"].setText(f"{thxgiven} Thanks gegeben")
 		self["thxreceived"].setText(f"{thxreceived} Thanks bekommen")
 		self["residence"].setText(f"Wohnort:{residence}")
@@ -542,20 +543,20 @@ class openATVMain(openATVglobals):
 					{"default": (80,[ # index
 						MultiContentEntryPixmapAlphaTest(pos=(0,0), size=(1200,1), png=6), # line separator
 						MultiContentEntryText(pos=(6,2), size=(960,34), font=0, color="grey", color_sel="white", flags=RT_HALIGN_LEFT|RT_ELLIPSIS, text=0),  # theme
-						MultiContentEntryText(pos=(6,28), size=(930,32), font=1, color=0x003ca2c6, color_sel=0x00a6a6a6, flags=RT_HALIGN_LEFT, text=1),  # creation
-						MultiContentEntryText(pos=(6,52), size=(930,32), font=1, color=0x003ca2c6, color_sel=0x00a6a6a6, flags=RT_HALIGN_LEFT, text=2),  # forum
-						MultiContentEntryText(pos=(940,2), size=(232,30), font=2, color=0x005fb300, color_sel=0x0088ff00, flags=RT_HALIGN_RIGHT, text=3),  # date
-						MultiContentEntryText(pos=(940,24), size=(232,34), font=0, color=0x00b2b300, color_sel=0x00ffff00, flags=RT_HALIGN_RIGHT, text=4),  # user
-						MultiContentEntryText(pos=(940,54), size=(232,30), font=2, color=0x003ca2c6, color_sel=0x0092cbdf, flags=RT_HALIGN_RIGHT, text=5)  # statistic
+						MultiContentEntryText(pos=(6,28), size=(924,32), font=1, color=0x003ca2c6, color_sel=0x00a6a6a6, flags=RT_HALIGN_LEFT, text=1),  # creation
+						MultiContentEntryText(pos=(6,52), size=(924,32), font=1, color=0x003ca2c6, color_sel=0x00a6a6a6, flags=RT_HALIGN_LEFT, text=2),  # forum
+						MultiContentEntryText(pos=(932,2), size=(240,30), font=2, color=0x005fb300, color_sel=0x0088ff00, flags=RT_HALIGN_RIGHT, text=3),  # date
+						MultiContentEntryText(pos=(932,24), size=(240,34), font=0, color=0x00b2b300, color_sel=0x00ffff00, flags=RT_HALIGN_RIGHT, text=4),  # user
+						MultiContentEntryText(pos=(932,54), size=(240,30), font=2, color=0x003ca2c6, color_sel=0x0092cbdf, flags=RT_HALIGN_RIGHT, text=5)  # statistic
 						]),
 						"thread": (93,[
 						MultiContentEntryPixmapAlphaTest(pos=(0,0), size=(1200,1), png=4), # line separator
 						MultiContentEntryPixmapAlphaBlend(pos=(6,2), size=(70,70), flags=BT_HALIGN_LEFT|BT_VALIGN_CENTER|BT_SCALE|BT_KEEP_ASPECT_RATIO, png=5),  # avatar
 						MultiContentEntryPixmapAlphaBlend(pos=(9,72), size=(64,16), png=6),  # online
-						MultiContentEntryText(pos=(106,6), size=(860,76), font=1, color=0x003ca2c6, color_sel=0x0092cbdf, flags=RT_HALIGN_LEFT|RT_WRAP, text=0), # description
-						MultiContentEntryText(pos=(940,6), size=(232,30), font=2, color=0x005fb300, color_sel=0x0088ff00, flags=RT_HALIGN_RIGHT, text=1),  # date
-						MultiContentEntryText(pos=(940,30), size=(232,34), font=0, color=0x00b2b300, color_sel=0x00ffff00, flags=RT_HALIGN_RIGHT, text=2),  # user
-						MultiContentEntryText(pos=(940,60), size=(232,30), font=2, color=0x003ca2c6, color_sel=0x0092cbdf, flags=RT_HALIGN_RIGHT, text=3)  # postcount
+						MultiContentEntryText(pos=(106,6), size=(822,76), font=1, color=0x003ca2c6, color_sel=0x0092cbdf, flags=RT_HALIGN_LEFT|RT_WRAP, text=0), # description
+						MultiContentEntryText(pos=(932,6), size=(240,30), font=2, color=0x005fb300, color_sel=0x0088ff00, flags=RT_HALIGN_RIGHT, text=1),  # date
+						MultiContentEntryText(pos=(932,30), size=(240,34), font=0, color=0x00b2b300, color_sel=0x00ffff00, flags=RT_HALIGN_RIGHT, text=2),  # user
+						MultiContentEntryText(pos=(932,60), size=(240,30), font=2, color=0x003ca2c6, color_sel=0x0092cbdf, flags=RT_HALIGN_RIGHT, text=3)  # postcount
 						])
 					},
 				"fonts": [gFont("Regular",22), gFont("Regular",20), gFont("Regular",18)]
@@ -783,7 +784,11 @@ class openATVMain(openATVglobals):
 				signature = self.searchOneValue(r'<div id=".*?" class="signature">(.*?)\s*</div>', post, "", flags=S)
 				for element in findall(r'<a href=".*?"\s*class="postlink".*?">(.*?)</span></a>', signature, flags=S):
 					signature = sub(r'<a href=".*?"\s*class="postlink".*?">(.*?)</span></a>', f"{{Link: {element}}}", signature, count=1, flags=S)
-				signature = self.cleanupDescTags(f"{{Signatur: {signature}}}") if signature else ""
+				signature = self.cleanupDescTags(signature)
+				# these details won't be supplied by direct homepage download
+#				thanks = self.searchOneValue(r"<div id='list_thanks(.*?)<div id='div_post_reput", post, "", flags=S)
+#				notice = " ".join(self.searchTwoValues(r'<dt>(.*?)<a href=".*?">(.*?)</dt>', thanks, "", ""))
+#				notice += ", ".join(findall(r'<span title=.*?class="username">(.*?)</a></span>', thanks, flags=S))
 				post = sub(r'<div class="inline-attachment">.*?title="(.*?)" />.*?</div>', group1, post, flags=S)
 				post = sub(r'<div class="inline-attachment">(.*?)</div>', group1, post, flags=S)
 				fulldesc = self.searchOneValue(r'<div class="content">(.*?)<div id=', post, "{keine Beschreibung}", flags=S)
