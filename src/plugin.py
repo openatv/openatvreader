@@ -51,8 +51,9 @@ class openATVglobals(Screen):
 			html = html.replace("\t", "")  # remove all tabs, they might be used as an separator later
 			html = html.replace("\n", " ").replace("<br />", " ") if singleline else html.replace("\n", "").replace("<br />", "")
 			# remove undesired linefeeds and spaces
+			spacer = " " if singleline else "\n"
 			separator = "\t" if singleline else "\n"
-			html = "\n".join(list(filter(None, html.replace("<br>", separator).split(separator))))  # remove all or more than two <br>
+			html = spacer.join(list(filter(None, html.replace("<br>", separator).split(separator))))  # remove all or more than two <br>
 			html = " ".join(list(filter(None, html.replace(" ", "\t").split("\t"))))  # remove more than one spaces
 			# special handling cites (blockquote)
 			rhtml = f"----- {group1} hat geschrieben: -----{{Zitat Anfang}}"
@@ -63,10 +64,10 @@ class openATVglobals(Screen):
 			html = sub(r'<blockquote>(.*?)</blockquote>', group1, html, flags=S)
 			# special handling attachments
 			html = sub(r'<div id=".*?" class="signature">(.*)</div>', f'{group1}\n', html, flags=S)
-			html = sub(r'<a href="./download/file.php.*?title="(.*?)" /></a>', '{Bild} ' if singleline else group1, html, flags=S)
+			html = sub(r'<a href="./download/file.php.*?title="(.*?)" /></a>', '{Bild} ' if singleline else f'{group1}', html, flags=S)
 			html = sub(r'<dd>(.*?)</dd>', group1, html, flags=S)
-			html = sub(r'<dl class="file">(.*?)</dl>', '{Anhang} ' if singleline else f'\n{group1}\n', html, flags=S)
-			html = sub(r'<dl class="thumbnail">(.*?)\s*</dl>', '{Bild} ' if singleline else f'\n{{Anhangy: {group1}}}', html, flags=S).replace("</dl>", "")
+			html = sub(r'<dl class="file">(.*?)</dl>', '{Anhang} ' if singleline else f'\n{{Anhang: {group1}}}\n', html, flags=S)
+			html = sub(r'<dl class="thumbnail">(.*?)\s*</dl>', '{Bild} ' if singleline else f'\n{{Bild: {group1}}}', html, flags=S).replace("</dl>", "")
 			html = sub(r'<div class="codebox">.*?</pre></div>(.*?)</div>', '{Code} ' if singleline else f'\n{{Code}}\n{group1}', html)
 			html = sub(r'<dl class="attachbox">.*?<dt>.*?</dt>', '', html, flags=S)
 			html = sub(r'<span class=.*?</a>', '', html)
@@ -74,13 +75,13 @@ class openATVglobals(Screen):
 			# general unwrappers
 			while search(r'<span style=".*?">(.*?)</span>', html):
 				html = sub(r'<span style=".*?">(.*?)</span>', group1, html)   # remove multiple styles
-			html = sub(r'<img class="smilies".*?alt="(.*?)".*?">', '{Emoicon} ' if singleline else group1, html)
-			html = sub(r'<a href=.*?">(.*?)</a>', '{Link} ' if singleline else f'\n{group1}\n', html)
+			html = sub(r'<img class="smilies".*?alt="(.*?)".*?">', '{Emoicon} ' if singleline else f'{{Emoicon: {group1}}}', html)
+			html = sub(r'<a href=.*?">(.*?)</a>', '{Link} ' if singleline else f'{group1}', html)
 			html = sub(r'<img alt="(.*?)" class="emoji smilies" draggable="false" src=".*?">', '', html)
-			html = sub(r'<dt class="attach-image">(.*?)</dt>', '{Bild} ' if singleline else group1, html)
-			html = sub(r'<img src=.*?alt="(.*?)">', '{Bild} ' if singleline else f'{{{group1}}}', html)
-			html = sub(r'<img src=.*?alt="(.*?)".*?/>', '{Bild} ' if singleline else group1, html)
-			html = sub(r'<img.*?".*?alt="(.*?)".*?">', '{Bild} ' if singleline else group1, html)
+			html = sub(r'<dt class="attach-image">(.*?)</dt>', '{Bild} ' if singleline else f'{{Bild: {group1}}}', html)
+			html = sub(r'<img src=.*?alt="(.*?)">', '{Bild} ' if singleline else f'{{Bild: {group1}}}', html)
+			html = sub(r'<img src=.*?alt="(.*?)".*?/>', '{Bild} ' if singleline else f'{{Bild: {group1}}}', html)
+			html = sub(r'<img.*?".*?alt="(.*?)".*?">', '{Bild} ' if singleline else f'{{Bild: {group1}}}', html)
 			html = sub(r'<table.*?">.*?</table>', '{Tabelle}' if singleline else '{Tabelle}\n', html)
 			html = sub(r'<ol.*?</ol>', '{Auflistung}' if singleline else '{Auflistung}\n', html)
 			html = sub(r'<ul.*?</ul>', '{Auflistung}' if singleline else '{Auflistung}\n', html)
