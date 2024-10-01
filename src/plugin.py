@@ -79,9 +79,9 @@ class openATVglobals(Screen):
 			html = sub(r'<a href=.*?">(.*?)</a>', '{Link} ' if singleline else f'{group1}', html)
 			html = sub(r'<img alt="(.*?)" class="emoji smilies" draggable="false" src=".*?">', '', html)
 			html = sub(r'<dt class="attach-image">(.*?)</dt>', '{Bild} ' if singleline else f'{{Bild: {group1}}}', html)
-			html = sub(r'<img src=.*?alt="(.*?)">', '{Bild} ' if singleline else f'{{Bild: {group1}}}', html)
-			html = sub(r'<img src=.*?alt="(.*?)".*?/>', '{Bild} ' if singleline else f'{{Bild: {group1}}}', html)
-			html = sub(r'<img.*?".*?alt="(.*?)".*?">', '{Bild} ' if singleline else f'{{Bild: {group1}}}', html)
+			html = sub(r'<img src=.*?alt="(.*?)">', 'f{{{group1}}} ' if singleline else f'{{{group1}}}', html)
+			html = sub(r'<img src=.*?alt="(.*?)".*?/>', f'{{{group1}}} ' if singleline else f'{{{group1}}}', html)
+			html = sub(r'<img.*?".*?alt="(.*?)".*?">', f'{{{group1}}} ' if singleline else f'{{{group1}}}', html)
 			html = sub(r'<table.*?">.*?</table>', '{Tabelle}' if singleline else '{Tabelle}\n', html)
 			html = sub(r'<ol.*?</ol>', '{Auflistung}' if singleline else '{Auflistung}\n', html)
 			html = sub(r'<ul.*?</ul>', '{Auflistung}' if singleline else '{Auflistung}\n', html)
@@ -530,10 +530,10 @@ class openATVMain(openATVglobals):
 		<widget source="global.CurrentTime" render="Label" position="1080,10" size="130,28" font="Regular;28" noWrap="1" halign="right" valign="top" foregroundColor="#00FFFFFF" backgroundColor="#1A0F0F0F" transparent="1">
 			<convert type="ClockToText">Default</convert>
 		</widget>
-		<widget source="global.CurrentTime" render="Label" position="960,10" size="140,26" font="Regular;20" noWrap="1" halign="right" valign="bottom" foregroundColor="#00FFFFFF" backgroundColor="#1A0F0F0F" transparent="1">
+		<widget source="global.CurrentTime" render="Label" position="940,10" size="140,26" font="Regular;20" noWrap="1" halign="right" valign="bottom" foregroundColor="#00FFFFFF" backgroundColor="#1A0F0F0F" transparent="1">
 			<convert type="ClockToText">Format:%A</convert>
 		</widget>
-		<widget source="global.CurrentTime" render="Label" position="960,34" size="140,26" font="Regular;20" noWrap="1" halign="right" valign="bottom" foregroundColor="#00FFFFFF" backgroundColor="#1A0F0F0F" transparent="1">
+		<widget source="global.CurrentTime" render="Label" position="940,34" size="140,26" font="Regular;20" noWrap="1" halign="right" valign="bottom" foregroundColor="#00FFFFFF" backgroundColor="#1A0F0F0F" transparent="1">
 			<convert type="ClockToText">Format:%e. %B</convert>
 		</widget>
 		<widget source="pagecount" render="Label" position="1080,36" size="130,26" font="Regular;16" halign="right" valign="center" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1" />
@@ -542,21 +542,21 @@ class openATVMain(openATVglobals):
 				{"templates":
 					{"default": (80,[ # index
 						MultiContentEntryPixmapAlphaTest(pos=(0,0), size=(1200,1), png=6), # line separator
-						MultiContentEntryText(pos=(6,2), size=(960,34), font=0, color="grey", color_sel="white", flags=RT_HALIGN_LEFT|RT_ELLIPSIS, text=0),  # theme
-						MultiContentEntryText(pos=(6,28), size=(924,32), font=1, color=0x003ca2c6, color_sel=0x00a6a6a6, flags=RT_HALIGN_LEFT, text=1),  # creation
-						MultiContentEntryText(pos=(6,52), size=(924,32), font=1, color=0x003ca2c6, color_sel=0x00a6a6a6, flags=RT_HALIGN_LEFT, text=2),  # forum
-						MultiContentEntryText(pos=(932,2), size=(240,30), font=2, color=0x005fb300, color_sel=0x0088ff00, flags=RT_HALIGN_RIGHT, text=3),  # date
-						MultiContentEntryText(pos=(932,24), size=(240,34), font=0, color=0x00b2b300, color_sel=0x00ffff00, flags=RT_HALIGN_RIGHT, text=4),  # user
-						MultiContentEntryText(pos=(932,54), size=(240,30), font=2, color=0x003ca2c6, color_sel=0x0092cbdf, flags=RT_HALIGN_RIGHT, text=5)  # statistic
+						MultiContentEntryText(pos=(6,2), size=(914,34), font=0, color="grey", color_sel="white", flags=RT_HALIGN_LEFT|RT_ELLIPSIS, text=0),  # theme
+						MultiContentEntryText(pos=(6,28), size=(914,32), font=1, color=0x003ca2c6, color_sel=0x00a6a6a6, flags=RT_HALIGN_LEFT, text=1),  # creation
+						MultiContentEntryText(pos=(6,52), size=(914,32), font=1, color=0x003ca2c6, color_sel=0x00a6a6a6, flags=RT_HALIGN_LEFT, text=2),  # forum
+						MultiContentEntryText(pos=(922,2), size=(250,30), font=2, color=0x005fb300, color_sel=0x0088ff00, flags=RT_HALIGN_RIGHT, text=3),  # date
+						MultiContentEntryText(pos=(922,24), size=(250,34), font=0, color=0x00b2b300, color_sel=0x00ffff00, flags=RT_HALIGN_RIGHT, text=4),  # user
+						MultiContentEntryText(pos=(922,54), size=(250,30), font=2, color=0x003ca2c6, color_sel=0x0092cbdf, flags=RT_HALIGN_RIGHT, text=5)  # statistic
 						]),
 						"thread": (93,[
 						MultiContentEntryPixmapAlphaTest(pos=(0,0), size=(1200,1), png=4), # line separator
 						MultiContentEntryPixmapAlphaBlend(pos=(6,2), size=(70,70), flags=BT_HALIGN_LEFT|BT_VALIGN_CENTER|BT_SCALE|BT_KEEP_ASPECT_RATIO, png=5),  # avatar
 						MultiContentEntryPixmapAlphaBlend(pos=(9,72), size=(64,16), png=6),  # online
-						MultiContentEntryText(pos=(106,6), size=(822,76), font=1, color=0x003ca2c6, color_sel=0x0092cbdf, flags=RT_HALIGN_LEFT|RT_WRAP, text=0), # description
-						MultiContentEntryText(pos=(932,6), size=(240,30), font=2, color=0x005fb300, color_sel=0x0088ff00, flags=RT_HALIGN_RIGHT, text=1),  # date
-						MultiContentEntryText(pos=(932,30), size=(240,34), font=0, color=0x00b2b300, color_sel=0x00ffff00, flags=RT_HALIGN_RIGHT, text=2),  # user
-						MultiContentEntryText(pos=(932,60), size=(240,30), font=2, color=0x003ca2c6, color_sel=0x0092cbdf, flags=RT_HALIGN_RIGHT, text=3)  # postcount
+						MultiContentEntryText(pos=(106,6), size=(904,80), font=1, color=0x003ca2c6, color_sel=0x0092cbdf, flags=RT_HALIGN_LEFT|RT_WRAP, text=0), # description
+						MultiContentEntryText(pos=(1022,6), size=(150,30), font=2, color=0x005fb300, color_sel=0x0088ff00, flags=RT_HALIGN_RIGHT, text=1),  # date
+						MultiContentEntryText(pos=(1022,30), size=(150,34), font=0, color=0x00b2b300, color_sel=0x00ffff00, flags=RT_HALIGN_RIGHT, text=2),  # user
+						MultiContentEntryText(pos=(1022,60), size=(150,30), font=2, color=0x003ca2c6, color_sel=0x0092cbdf, flags=RT_HALIGN_RIGHT, text=3)  # postcount
 						])
 					},
 				"fonts": [gFont("Regular",22), gFont("Regular",20), gFont("Regular",18)]
@@ -796,7 +796,7 @@ class openATVMain(openATVglobals):
 				cnguser, cngdate = self.searchTwoValues(r'<div class="notice">\s*Zuletzt geändert von <a href=".*?">(.*?)</a>(.*?)</div>', post, "", "", flags=S)
 				changes = self.cleanupDescTags(f"Zuletzt geändert von {cnguser.strip()} {cngdate.strip()}" if cnguser and cngdate else "")
 				desc = self.cleanupDescTags(f"{fulldesc}\n", singleline=True)
-				desc = f"{postnr}: {desc[:255]}{desc[255:desc.find(' ', 255)]}…" if len(desc) > 255 else f"{postnr}: {desc}"
+				desc = f"{postnr}: {desc[:260]}{desc[260:desc.find(' ', 260)]}…" if len(desc) > 260 else f"{postnr}: {desc}"
 				fulldesc = self.cleanupDescTags(fulldesc).strip()
 				fulldesc += f"\n\n{signature}\n{changes}".replace("<br />", "<br>")
 				self.threadtexts.append([desc, date, username, postcnt])
