@@ -56,12 +56,9 @@ class openATVglobals(Screen):
 			html = spacer.join(list(filter(None, html.replace("<br>", separator).split(separator))))  # remove all or more than two <br>
 			html = " ".join(list(filter(None, html.replace(" ", "\t").split("\t"))))  # remove more than one spaces
 			# special handling cites (blockquote)
-			rhtml = f"----- {group1} hat geschrieben: -----{{Zitat Anfang}}"
+			rhtml = f"----- {group1} hat geschrieben-----{{Zitat Anfang}}"
 			rhtml = "{Zitat}" if singleline else f"{rhtml}{'-' * (111 - len(rhtml))}\n{group2}\n{'-' * 120}{{Zitat Ende}}-----\n"
-			html = sub(r'<blockquote cite=".*?"><div><cite><a href=".*?">(.*?)</a>.*?</cite>(.*?)</div></blockquote>', rhtml, html, flags=S)
-			html = sub(r'<blockquote.*?<cite><a href=".*?">(.*?)</a>.*?<a href="./viewtopic.php.*?</a>.*?</cite>(.*?)</blockquote>', rhtml, html, flags=S)
-			html = sub(r'<blockquote class="uncited"><div>(.*?)</div></blockquote>', group1, html, flags=S)
-			html = sub(r'<blockquote>(.*?)</blockquote>', group1, html, flags=S)
+			html = sub(r'<blockquote cite=.*?<a href=".*?">(.*?)</a>.*?</cite>(.*?)</blockquote>', rhtml, html, flags=S)
 			# special handling attachments
 			html = sub(r'<div id=".*?" class="signature">(.*)</div>', f'{group1}\n', html, flags=S)
 			html = sub(r'<a href="./download/file.php.*?title="(.*?)" /></a>', '{Bild} ' if singleline else f'{group1}', html, flags=S)
@@ -78,7 +75,7 @@ class openATVglobals(Screen):
 				html = sub(r'<span style=".*?">(.*?)</span>', group1, html, flags=S)   # remove multiple styles
 			html = sub(r'<img class="smilies".*?alt="(.*?)".*?">', '{Emoicon} ' if singleline else f'{{Emoicon: {group1}}}', html, flags=S)
 			html = sub(r'<a href=.*?">(.*?)</a>', '{Link} ' if singleline else f'{group1}', html, flags=S)
-			html = sub(r'<img alt="(.*?)" class="emoji smilies" draggable="false" src=".*?">', '', html, flags=S)
+			html = sub(r'<img alt="(.*?)".*?src=".*?">', '', html, flags=S)
 			html = sub(r'<dt class="attach-image">(.*?)</dt>', '{Bild} ' if singleline else f'{{Bild: {group1}}}', html, flags=S)
 			html = sub(r'<img src=.*?alt="(.*?)">', f'{{{group1}}} ' if singleline else f'{{{group1}}}', html, flags=S)
 			html = sub(r'<img src=.*?alt="(.*?)".*?/>', f'{{{group1}}} ' if singleline else f'{{{group1}}}', html, flags=S)
@@ -92,19 +89,20 @@ class openATVglobals(Screen):
 			html = sub(r'<em class=".*?">(.*?)</em>', group1, html, flags=S)
 			html = sub(r'<span.*?">(.*?)</span>', group1, html, flags=S)
 			html = sub(r'<strong>(.*?)</strong>', group1, html, flags=S)
-			html = sub(r"<div id='.*?'></div>", "", html, flags=S)
-			html = sub(r'<div .*?>(.*?)</div>', group1, html, flags=S)
 			html = sub(r'<code>(.*)</code>', group1, html, flags=S)
 			html = sub(r'<em.*?>(.*?)</em>', group1, html, flags=S)
 			html = sub(r'<p>(.*?)<.*?</p>', group1, html)
 			html = sub(r'<sup>(.*?)</sup>', group1, html)
 			html = sub(r'<sub>(.*?)</sub>', group1, html)
 			html = sub(r'<pre>(.*?)</pre>', group1, html)
-			html = sub(r'<cite>.*?</cite>', '', html, flags=S)
+			html = sub(r'<cite><a href=".*?">(.*?)</a>.*?</cite>', group1, html, flags=S)
+			html = sub(r'<cite>(.*?)</cite>', f'{group1} ', html, flags=S)
+			html = sub(r"<div id='.*?'></div>", "", html, flags=S)
+			html = sub(r'<div .*?>(.*?)</div>', group1, html, flags=S)
+			html = sub(r'<div>(.*?)</div>', group1, html, flags=S)
 			html = sub(r'<em>.*?</em>', '', html, flags=S)
 			html = html.replace('</div><div class="notice">', ' ')  # remove residual waste
 			html = "".join(html.rsplit("</div>", 1))  # neccessarily remove last "</div>"
-			html = self.cleanupUserTags(html)
 		return html if singleline else f"{html}\n"
 
 	def cleanupUserTags(self, html):
@@ -275,6 +273,7 @@ class openATVFav(openATVglobals):
 														"down": self.keyPageDown,
 														"up": self.keyPageUp,
 														"red": self.keyRed,
+														"blue": self.keyBlue
 														}, -1)
 		self.onLayoutFinish.append(self.makeFav)
 
@@ -787,17 +786,16 @@ class openATVMain(openATVglobals):
 #				thanks = self.searchOneValue(r"<div id='list_thanks(.*?)<div id='div_post_reput", post, "", flags=S)
 #				notice = " ".join(self.searchTwoValues(r'<dt>(.*?)<a href=".*?">(.*?)</dt>', thanks, "", ""))
 #				notice += ", ".join(findall(r'<span title=.*?class="username">(.*?)</a></span>', thanks, flags=S))
+				post = sub(r'<div class="inline-attachment">(.*?)</div>', f'{{{group1}}}', post, flags=S)
 				post = sub(r'<div class="inline-attachment">.*?title="(.*?)" />.*?</div>', group1, post, flags=S)
-				post = sub(r'<div class="inline-attachment">(.*?)</div>', group1, post, flags=S)
-				fulldesc = self.searchOneValue(r'<div class="content">(.*?)<div id=', post, "{keine Beschreibung}", flags=S) + '<br>'
+				fulldesc = self.searchOneValue(r'<div class="content">(.*?)</div>', post, "{keine Beschreibung}", flags=S).replace('<br />', '<br>')
 				cnguser, cngdate = self.searchTwoValues(r'<div class="notice">\s*Zuletzt geändert von <a href=".*?">(.*?)</a>(.*?)</div>', post, "", "", flags=S)
 				changes = self.cleanupDescTags(f"Zuletzt geändert von {cnguser.strip()} {cngdate.replace('<br />', '<br>').strip()}" if cnguser and cngdate else "")
-				desc = self.cleanupDescTags(f"{fulldesc}\n", singleline=True)
-				desc = f"{postnr}: {desc[:260]}{desc[260:desc.find(' ', 260)]}…" if len(desc) > 260 else f"{postnr}: {desc}"
-				fulldesc = sub(r'<div.*?</div>', '', fulldesc, flags=S)
+				shortdesc = self.cleanupDescTags(f"{fulldesc}\n", singleline=True)
+				shortdesc = f"{postnr}: {shortdesc[:260]}{shortdesc[260:shortdesc.find(' ', 260)]}…" if len(shortdesc) > 260 else f"{postnr}: {shortdesc}"
 				fulldesc = self.cleanupDescTags(fulldesc.replace('</div>', '<br>')).strip()
 				fulldesc += f"\n\n{signature}\n{changes}"
-				self.threadtexts.append([desc, date, username, postcnt])
+				self.threadtexts.append([shortdesc, date, username, postcnt])
 				self.threadpics.append([avatarlink, online])
 				self.postlist.append((posttitle, postid, postnr, avatarlink, online, username, usertitle, userrank, residence, postcnt, thxgiven, thxreceived, registered, date, fulldesc))
 				userlist.append((username))
