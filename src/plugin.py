@@ -6,7 +6,7 @@
 #  the license), but it may not be commercially distributed. Advertise with this tool is not allowed.   #
 #  For other uses, permission from the authors is necessary.                                            #
 #########################################################################################################
-from imghdr import what
+from PIL import Image
 from glob import glob
 from html import unescape
 from os import rename, makedirs, linesep
@@ -32,6 +32,12 @@ from Tools.BoundFunction import boundFunction
 from Tools.Directories import resolveFilename, SCOPE_PLUGINS, SCOPE_CONFIG
 from Tools.LoadPixmap import LoadPixmap
 
+def get_image_type(filename):
+	try:
+		with Image.open(filename) as img:
+			return img.format.lower()
+	except Exception:
+		return None
 
 class openATVglobals(Screen):
 	VERSION = "V2.0"
@@ -471,7 +477,7 @@ class openATVPost(openATVglobals):
 			with open(filename, "wb") as f:
 				f.write(content)
 			fileparts = filename.split(".")
-			pictype = what(filename)
+			pictype = get_image_type(filename)
 			if pictype and pictype != fileparts[1]:  # Some avatars were incorrectly listed as .GIF although they are .JPG or .PNG
 				newfname = f"{fileparts[0]}.{pictype.replace("jpeg", "jpg")}"
 				rename(filename, newfname)
@@ -880,7 +886,7 @@ class openATVMain(openATVglobals):
 			with open(file, "wb") as f:
 				f.write(response.content)
 			fileparts = file.split(".")
-			pictype = what(file)
+			pictype = get_image_type(file)
 			if pictype and pictype != fileparts[1]:  # Some avatars could be incorrectly listed as .GIF although they are .JPG or .PNG
 				filename = f"{fileparts[0]}.{pictype.replace("jpeg", "jpg")}"
 				rename(file, filename)
