@@ -6,8 +6,6 @@
 #  the license), but it may not be commercially distributed. Advertise with this tool is not allowed.   #
 #  For other uses, permission from the authors is necessary.                                            #
 #########################################################################################################
-from .forumparser import fparser
-
 from glob import glob
 from os import rename, makedirs, linesep
 from os.path import join, exists
@@ -16,12 +14,6 @@ from shutil import copy2, rmtree
 from twisted.internet.reactor import callInThread
 from urllib.parse import urlparse, parse_qs
 from enigma import getDesktop, eTimer, BT_SCALE, BT_KEEP_ASPECT_RATIO
-SUPPALLIMGS = True
-try:
-	from enigma import detectImageType  # new function in OpenATV 7.6.0 and newer
-except ImportError:
-	SUPPALLIMGS = False
-	from imghdr import what  # DEPRECATED function in OpenATV 7.5.1 or older
 from Components.ActionMap import ActionMap, NumberActionMap
 from Components.ConditionalWidget import BlinkingWidget
 from Components.Label import Label
@@ -35,10 +27,19 @@ from Screens.Screen import Screen
 from Tools.BoundFunction import boundFunction
 from Tools.Directories import resolveFilename, SCOPE_PLUGINS, SCOPE_CONFIG
 from Tools.LoadPixmap import LoadPixmap
+from . import __version__
+from .forumparser import fparser
+
+SUPPALLIMGS = True
+try:
+	from enigma import detectImageType  # new function in OpenATV 7.6.0 and newer
+except ImportError:
+	SUPPALLIMGS = False
+	from imghdr import what  # DEPRECATED function in OpenATV 7.5.1 or older
 
 
 class ATVglobals:
-	VERSION = "V2.1"
+	VERSION = f"V{__version__}"
 	AVATARPATH = "/tmp/avatare"
 	PLUGINPATH = resolveFilename(SCOPE_PLUGINS, "Extensions/OpenATVreader/")
 	FAVORITEN = resolveFilename(SCOPE_CONFIG, "openatvreader_fav.dat")
@@ -162,18 +163,20 @@ class getNumber(ATVhelper):
 		self["version"] = StaticText(self.VERSION)
 		self["headline"] = StaticText()
 		self["number"] = StaticText(self.field)
-		self['actions'] = NumberActionMap(['SetupActions'], {"ok": self.keyOK,
-															"cancel": self.quit,
-															"1": self.keyNumber,
-															"2": self.keyNumber,
-															"3": self.keyNumber,
-															"4": self.keyNumber,
-															"5": self.keyNumber,
-															"6": self.keyNumber,
-															"7": self.keyNumber,
-															"8": self.keyNumber,
-															"9": self.keyNumber,
-															"0": self.keyNumber})
+		self['actions'] = NumberActionMap(['OkCancelActions'], {
+			"ok": self.keyOK,
+			"cancel": self.quit,
+			"1": self.keyNumber,
+			"2": self.keyNumber,
+			"3": self.keyNumber,
+			"4": self.keyNumber,
+			"5": self.keyNumber,
+			"6": self.keyNumber,
+			"7": self.keyNumber,
+			"8": self.keyNumber,
+			"9": self.keyNumber,
+			"0": self.keyNumber
+		})
 		self.Timer = eTimer()
 		self.Timer.callback.append(self.keyOK)
 		self.Timer.start(2000, True)
@@ -230,15 +233,14 @@ class openATVFav(ATVhelper):
 		self["key_red"] = StaticText("Favorit entfernen")
 		self["key_blue"] = StaticText("Startseite")
 		self["favMenu"] = List([])
-		self["actions"] = ActionMap(["OkCancelActions",
-									"DirectionActions",
-									"ColorActions"], {"ok": self.keyOk,
-														"cancel": self.keyExit,
-														"down": self.keyPageDown,
-														"up": self.keyPageUp,
-														"red": self.keyRed,
-														"blue": self.keyBlue
-														}, -1)
+		self["actions"] = ActionMap(["OkCancelActions", "DirectionActions", "ColorActions"], {
+			"ok": self.keyOk,
+			"cancel": self.keyExit,
+			"down": self.keyPageDown,
+			"up": self.keyPageUp,
+			"red": self.keyRed,
+			"blue": self.keyBlue
+		}, -1)
 		self.onLayoutFinish.append(self.makeFav)
 
 	def makeFav(self):
@@ -372,22 +374,18 @@ class openATVPost(ATVhelper):
 		self["key_red"] = StaticText("Favorit hinzufügen")
 		self["key_yellow"] = StaticText("Favoriten aufrufen")
 		self["key_blue"] = StaticText("Startseite")
-		self["NumberActions"] = ActionMap(["NumberActions",
-												"OkCancelActions",
-												"DirectionActions",
-												"ChannelSelectBaseActions",
-												"MovieSelectionActions",
-												"ColorActions"], {"cancel": self.keyExit,
-																	"down": self.keyDown,
-																	"up": self.keyUp,
-																	"right": self.keyPageDown,
-																	"left": self.keyPageUp,
-																	"nextBouquet": self.keyPageDown,
-																	"prevBouquet": self.keyPageUp,
-																	"red": self.keyRed,
-																	"yellow": self.keyYellow,
-																	"blue": self.keyBlue
-																	}, -1)
+		self["NumberActions"] = ActionMap(["NumberActions", "OkCancelActions", "DirectionActions", "ChannelSelectBaseActions", "ColorActions"], {
+			"cancel": self.keyExit,
+			"down": self.keyDown,
+			"up": self.keyUp,
+			"right": self.keyPageDown,
+			"left": self.keyPageUp,
+			"nextBouquet": self.keyPageDown,
+			"prevBouquet": self.keyPageUp,
+			"red": self.keyRed,
+			"yellow": self.keyYellow,
+			"blue": self.keyBlue
+		}, -1)
 		self.onLayoutFinish.append(self.onLayoutFinished)
 
 	def onLayoutFinished(self):
@@ -598,36 +596,30 @@ class openATVMain(ATVhelper):
 		self["key_red"] = StaticText("Favorit hinzufügen")
 		self["key_green"] = StaticText("Aktualisieren")
 		self["menu"] = List([])
-		self["NumberActions"] = NumberActionMap(["NumberActions",
-												"WizardActions",
-												"NumberActions",
-												"DirectionActions",
-												"MenuActions",
-												"ChannelSelectBaseActions",
-												"ColorActions"], {"ok": self.keyOk,
-																	"back": self.keyExit,
-																	"cancel": self.keyExit,
-																	"red": self.keyRed,
-																	"green": self.keyGreen,
-																	"yellow": self.keyYellow,
-																	"blue": self.keyBlue,
-																	"up": self.keyUp,
-																	"down": self.keyDown,
-																	"right": self.keyPageDown,
-																	"left": self.keyPageUp,
-																	"nextBouquet": self.prevPage,
-																	"prevBouquet": self.nextPage,
-																	"0": self.gotoPage,
-																	"1": self.gotoPage,
-																	"2": self.gotoPage,
-																	"3": self.gotoPage,
-																	"4": self.gotoPage,
-																	"5": self.gotoPage,
-																	"6": self.gotoPage,
-																	"7": self.gotoPage,
-																	"8": self.gotoPage,
-																	"9": self.gotoPage
-																}, -1)
+		self["NumberActions"] = NumberActionMap(["NumberActions", "WizardActions", "ChannelSelectBaseActions", "ColorActions"], {
+			"ok": self.keyOk,
+			"back": self.keyExit,
+			"red": self.keyRed,
+			"green": self.keyGreen,
+			"yellow": self.keyYellow,
+			"blue": self.keyBlue,
+			"up": self.keyUp,
+			"down": self.keyDown,
+			"right": self.keyPageDown,
+			"left": self.keyPageUp,
+			"nextBouquet": self.prevPage,
+			"prevBouquet": self.nextPage,
+			"0": self.gotoPage,
+			"1": self.gotoPage,
+			"2": self.gotoPage,
+			"3": self.gotoPage,
+			"4": self.gotoPage,
+			"5": self.gotoPage,
+			"6": self.gotoPage,
+			"7": self.gotoPage,
+			"8": self.gotoPage,
+			"9": self.gotoPage
+		}, -1)
 		self.checkFiles()
 		linefile = join(self.PLUGINPATH, f"icons/line_{self.RESOLUTION}.png")
 		self.linePix = LoadPixmap(cached=True, path=linefile) if exists(linefile) else None
