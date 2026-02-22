@@ -619,25 +619,24 @@ class openATVMain(ATVhelper):
 		self.offline = LoadPixmap(cached=True, path=statusFile) if exists(statusFile) else None
 		copy2(join(self.PLUGINPATH, "icons/user_stat.png"), self.AVATARPATH)
 		copy2(join(self.PLUGINPATH, "icons/unknown.png"), self.AVATARPATH)
-		self.onLayoutFinish.append(self.onLayoutFinished)
+		self.onShown.append(self.onShownFinished)
 
-	def onLayoutFinished(self):
+	def onShownFinished(self):
 		self.showPic(self["button_page"], join(self.PLUGINPATH, f"icons/key_updown_{self.RESOLUTION}.png"), show=False, scale=False)
 		self.showPic(self["button_keypad"], join(self.PLUGINPATH, f"icons/keypad_{self.RESOLUTION}.png"), show=False, scale=False)
 		self.updateYellowButton()
-		if self.favlink or self.threadLink and self.threadLinks:
-			callInThread(self.makeThread, boundFunction(self.checkHTMLerror, firstCall=True))
-		else:
-			callInThread(self.makeLatest, boundFunction(self.checkHTMLerror, firstCall=True))
-
-	def checkHTMLerror(self, firstCall=False, errMsg=""):
+		errMsg = fparser.checkServerErrors()
 		if errMsg:
-			if firstCall:
-				userMsg = f"Fehler beim Zugriff auf die Forumsseite:\n\n{errMsg}\n\nDas Plugin wird deswegen nun beendet."
-				self.session.open(MessageBox, userMsg, type=MessageBox.TYPE_ERROR, timeout=10, close_on_any_key=True)
-				self.keyExit()
-			else:
-				self.session.open(MessageBox, f"Fehler beim Zugriff auf die Forumsseite:\n\n{errMsg}\n\n", type=MessageBox.TYPE_ERROR, timeout=5, close_on_any_key=True)
+			self.checkHTMLerror(errMsg)
+			self.keyExit()
+		if self.favlink or self.threadLink and self.threadLinks:
+			callInThread(self.makeThread, self.checkHTMLerror)
+		else:
+			callInThread(self.makeLatest, self.checkHTMLerror)
+
+	def checkHTMLerror(self, errMsg=""):
+		if errMsg:
+			self.session.open(MessageBox, f"Fehler beim Zugriff auf die Forumsseite:\n\n{errMsg}\n\n", type=MessageBox.TYPE_ERROR, timeout=5, close_on_any_key=True)
 
 	def makeLatest(self, errorCallBack, index=None):
 		self["menu"].style = "default"

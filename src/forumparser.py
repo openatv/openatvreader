@@ -36,13 +36,12 @@ class FparserHelper:
 		try:
 			response = get(url, timeout=timeout)
 			response.raise_for_status()
-			if response.ok:
-				errMsg, htmlData = "", response.text
-			else:
-				errMsg, htmlData = f"Website access ERROR, response code: {response.raise_for_status()}", ""
+			errMsg, htmlData = "", response.text
 			del response
 			return errMsg, htmlData
 		except exceptions.RequestException as errMsg:
+			errMsg = str(errMsg)
+			errMsg = errMsg[:errMsg.rfind(": ")]
 			print(f"[{MODULE_NAME}] ERROR in class 'FparserHelper:getHTMLdata': {errMsg}")
 			return errMsg, htmlData
 
@@ -51,6 +50,10 @@ class FparserHelper:
 
 	def createPostUrl(self, postId):
 		return f"{atvpglobals.BASEURL}viewtopic.php?p={postId}#p{postId}" if postId else ""
+
+	def checkServerErrors(self):
+		errMsg, htmlData = self.getHTMLdata(atvpglobals.BASEURL)
+		return errMsg
 
 	def parseLatest(self, startPage=0):
 		def setPostKey(key, value, replacements=[]):
