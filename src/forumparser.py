@@ -119,14 +119,9 @@ class FparserHelper:
 		titleLine = xml.title.string.replace(" - openATV Forum", "")  # "LCD4linux - Seite 150"
 		foundpos = titleLine.rfind("Seite")
 		threadTitle = titleLine[:foundpos - 3] if foundpos != -1 else titleLine
-		active = xml.find("li", {"class": "active"})  # <li class="active"><span>2</span></li>
-		if active:
-			active = active.span.get_text()
-			currPage = convert2int(active, 1) if active and active.isdigit() else 1
-			button = xml.find("a", {"class": "button", "role": "button"}).get_text("button")  # <a class="button" href="./viewtopic.php?t=69626&amp;start=20" role="button">2</a>
-			maxPages = convert2int(button, 1) if button and button.isdigit() else currPage
-		else:
-			currPage, maxPages = 1, 1
+		threadId = xml.find("input", {"name": "t", "type": "hidden"}).get("value")
+		pages = xml.find("a", {"class": "button button-icon-only dropdown-trigger"}).get_text().strip("Seite ").split(" von ")
+		currPage, maxPages = (convert2int(pages[0], 1), convert2int(pages[1], 1)) if pages and len(pages) > 1 else (1, 1)
 		threadList, threadUser = [], []
 		for post in xml.find_all("div", {"class": compile("post has-profile bg(.*?)")}):
 			threadDict = {}
@@ -150,7 +145,11 @@ class FparserHelper:
 			setThreadKey("postTime", postBody.find("time").get_text())
 			setThreadKey("shortContent", postBody.find("div", {"class": "content"}).get_text(separator=" ", strip=True)[:300])  # limit content as preview
 			threadList.append(threadDict)
-		return errMsg, {"threadTitle": threadTitle, "currPage": currPage, "maxPages": maxPages, "posts": threadList, "user": list(set(threadUser))}
+		return errMsg, {
+			"threadTitle": threadTitle, "threadId": threadId,
+			"currPage": currPage, "maxPages": maxPages,
+			"posts": threadList, "user": list(set(threadUser))
+			}
 
 	def checkServerStatus(self):
 		atvpglobals.BASEURL = bytes.fromhex("687474703A2F2F7265616465722E6F70656E612E7476E"[:-1]).decode()
