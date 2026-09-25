@@ -9,7 +9,6 @@
 from glob import glob
 from os import rename, makedirs, linesep
 from os.path import join, exists
-from requests import get, exceptions
 from shutil import copy2, rmtree
 from twisted.internet.reactor import callInThread
 from urllib.parse import urlparse, parse_qs
@@ -29,20 +28,14 @@ from Screens.Screen import Screen
 from Tools.BoundFunction import boundFunction
 from Tools.Directories import resolveFilename, SCOPE_PLUGINS, SCOPE_CONFIG
 from Tools.LoadPixmap import LoadPixmap
+from enigma import detectImageType
 
 from . import __version__
 from .forumparser import fparser
 
-SUPPALLIMGS = True
-try:
-	from enigma import detectImageType  # new function in OpenATV 7.6.0 and newer
-except ImportError:
-	SUPPALLIMGS = False
-	from imghdr import what  # DEPRECATED function in OpenATV 7.5.1 or older
-
 
 class ATVglobals:
-	VERSION = f"V{__version__}"
+	VERSION = f"v{__version__}"
 	AVATARPATH = "/tmp/avatare"
 	PLUGINPATH = resolveFilename(SCOPE_PLUGINS, "Extensions/OpenATVreader/")
 	FAVORITEN = resolveFilename(SCOPE_CONFIG, "openatvreader_fav.dat")
@@ -54,7 +47,7 @@ class ATVglobals:
 
 class ATVhelper(Screen, ATVglobals):
 	def handleAvatar(self, widget, pixUrl, callback=None):
-		avatarPix, filePath = None, join(self.AVATARPATH, "unknown.png")
+		avatarPix, urlFileName, filePath = None, "", join(self.AVATARPATH, "unknown.png")
 		if pixUrl:
 			if pixUrl.startswith("./"):  # in case it's an plugin avatar ('unknown.png' and 'user_stat.png')
 				filePath = join(self.AVATARPATH, pixUrl.replace("./", ""))
@@ -72,39 +65,34 @@ class ATVhelper(Screen, ATVglobals):
 				self.avatarDLlist.remove(pixUrl)
 		elif pixUrl not in self.avatarDLlist:  # avoid multiple threaded downloads of equal avatars
 			self.avatarDLlist.append(pixUrl)
-			if callback:
+			if callback and urlFileName:
 				callInThread(callback, widget, pixUrl, join(self.AVATARPATH, urlFileName))
 		return avatarPix, filePath
 
 	def downloadAvatar(self, url, filePath):  # file extensions in url could be wrong
-		try:
-			response = get(url, timeout=(3.05, 6))
-			if not response.ok:
-				print(f"[{self.MODULE_NAME}] Website access ERROR, response code: {response.raise_for_status()}", "")
-		except exceptions.RequestException as error:
-			errMsg = f"Der opena.tv Server ist zur Zeit nicht erreichbar.\n{error}"
-			print(f"[{self.MODULE_NAME}] ERROR in module 'downloadAvatar': {errMsg}!")
-			self.session.open(MessageBox, errMsg, MessageBox.TYPE_INFO, timeout=30, close_on_any_key=True)
+		errMsg, binaryData = fparser.getBinaryData(url)
+		if errMsg:
+			print(f"[{self.MODULE_NAME}] ERROR in module downloadAvatar': {errMsg}!")
+			errText = f"Der OpenA.TV Server ist zur Zeit nicht erreichbar.\n{errMsg}"
+			self.session.open(MessageBox, errText, MessageBox.TYPE_INFO, timeout=30, close_on_any_key=True)
 			return
-		try:
-			with open(filePath, "wb") as f:
-				f.write(response.content)
-		except OSError as errMsg:
-			print(f"[{self.MODULE_NAME}] ERROR in module 'downloadAvatar': {errMsg}!")
-			self.session.open(MessageBox, errMsg, MessageBox.TYPE_INFO, timeout=30, close_on_any_key=True)
-		fileParts = filePath.split(".")
-		if SUPPALLIMGS:  # use new function 'detectImageType' in OpenATV 7.6.0 or newer
+		if binaryData:
+			try:
+				with open(filePath, "wb") as f:
+					f.write(binaryData)
+			except OSError as errMsg:
+				print(f"[{self.MODULE_NAME}] ERROR in module 'downloadAvatar': {errMsg}!")
+				self.session.open(MessageBox, errMsg, MessageBox.TYPE_INFO, timeout=30, close_on_any_key=True)
+			fileParts = filePath.split(".")
 			extension = {0: "png", 1: "jpg", 3: "gif", 4: "svg", 5: "webp"}.get(detectImageType(filePath), fileParts[1])
-		else:  # use DEPRECATED function 'what' in OpenATV 7.5.1 or OpenATV 7.5.1 or older
-			extension = what(filePath).replace("jpeg", "jpg")
-		if extension != fileParts[1]:  # Some avatars could be incorrectly listed in 'url' as .GIF although they are .JPG or .PNG
-			newFname = f"{fileParts[0]}.{extension}"
-			rename(filePath, newFname)  # rename with correct extension
+			if extension != fileParts[1]:  # Some avatars could be incorrectly listed in 'url' as .GIF although they are .JPG or .PNG
+				newFname = f"{fileParts[0]}.{extension}"
+				rename(filePath, newFname)  # rename with correct extension
 
 	def showPic(self, widget, filePath, show=True, scale=True):
 		if scale:
 			widget.instance.setPixmapScaleFlags(BT_SCALE | BT_KEEP_ASPECT_RATIO)
-		widget.instance.setPixmapFromFile(filePath)
+		widget.instance.setPixmapFromFile(filePath, True)
 		if show:
 			widget.show()
 
@@ -317,8 +305,16 @@ class openATVPost(ATVhelper):
 		<widget source="version" render="Label" position="290,36" size="43,21" font="Regular;16" halign="left" valign="center" foregroundColor="grey" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1" />
 		<widget source="headline" render="Label" position="340,28" size="750,30" font="Regular;24" halign="left" valign="center" wrap="ellipsis" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1" />
 		<widget name="waiting" position="340,29" size="750,30" font="Regular;20" halign="left" valign="bottom" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1" />
-		<widget source="postid" render="Label" position="1100,6" size="100,21" font="Regular;16" halign="right" valign="center" foregroundColor="grey" transparent="1" zPosition="1" />
-		<widget source="postnr" render="Label" position="1100,26" size="100,30" font="Regular;24" halign="right" valign="center" foregroundColor="grey" transparent="1" zPosition="1" />
+		<widget source="global.CurrentTime" render="Label" position="1080,6" size="130,40" font="Regular;30" noWrap="1" halign="right" valign="top" foregroundColor="#00FFFFFF" backgroundColor="#1A0F0F0F" transparent="1">
+			<convert type="ClockToText">Default</convert>
+		</widget>
+		<widget source="global.CurrentTime" render="Label" position="940,10" size="140,26" font="Regular;20" noWrap="1" halign="right" valign="bottom" foregroundColor="#00FFFFFF" backgroundColor="#1A0F0F0F" transparent="1">
+			<convert type="ClockToText">Format:%A</convert>
+		</widget>
+		<widget source="global.CurrentTime" render="Label" position="940,34" size="140,26" font="Regular;20" noWrap="1" halign="right" valign="bottom" foregroundColor="#00FFFFFF" backgroundColor="#1A0F0F0F" transparent="1">
+			<convert type="ClockToText">Format:%e. %B</convert>
+		</widget>
+		<widget source="postid" render="Label" position="1080,36" size="130,26" font="Regular;16" halign="right" valign="center" foregroundColor="grey" transparent="1" zPosition="1" />
 		<ePixmap position="13,66" size="1200,1" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/line_HD.png" zPosition="1" />
 		<widget name="avatar" position="21,72" size="69,69" alphatest="blend" transparent="1" zPosition="1" />
 		<widget name="online" position="24,144" size="64,16" alphatest="blend" transparent="1" zPosition="1" />
@@ -351,12 +347,12 @@ class openATVPost(ATVhelper):
 		self.threadLinks = threadLinks
 		self.ready = False
 		self.avatarDLlist = []  # is required, don't remove
-		self.threadTitle, self.postNo = "", ""
+		self.postNo = ""
 		self["waiting"] = BlinkingLabel("bitte warten...")
 		self["waiting"].startBlinking()
 		self["waiting"].show()
 		self["version"] = StaticText(self.VERSION)
-		for widget in ["headline", "postid", "postnr", "username", "usertitle", "postcnt", "thxgiven", "thxreceived", "registered", "residence", "datum"]:
+		for widget in ["headline", "postid", "username", "usertitle", "postcnt", "thxgiven", "thxreceived", "registered", "residence", "datum"]:
 			self[widget] = StaticText()
 		for widget in ["online", "avatar", "userrank"]:
 			self[widget] = Pixmap()
@@ -387,27 +383,27 @@ class openATVPost(ATVhelper):
 		if errMsg:
 			self.session.open(MessageBox, f"FEHLER: {errMsg}", type=MessageBox.TYPE_ERROR, timeout=5, close_on_any_key=True)
 			return
-		self.postNo = postDict.get("postNo", "")
-		self.userName = postDict.get("userName", "")
-		avatarPix, filePath = self.handleAvatar(self["avatar"], postDict.get("avatarUrl", ""), self.handleAvatarShow)
-		self.showPic(self["avatar"], f"{filePath if filePath and exists(filePath) else join(self.AVATARPATH, "unknown.png")}")
-		userRank = postDict.get("userRank", "")
-		self.handleIcon(self["userrank"], userRank, self.handleIconShow)
-		online = postDict.get("online", "")
-		self.showPic(self["online"], join(self.PLUGINPATH, f"{'icons/online' if online else 'icons/offline'}_{self.RESOLUTION}.png"), scale=False)
-		self["waiting"].stopBlinking()
-		self["headline"].setText(self.threadTitle)
-		self["postid"].setText(f"ID: {self.postId}")
-		self["postnr"].setText(self.postNo)
-		self["username"].setText(self.userName)
-		self["usertitle"].setText(postDict.get("userTitle", ""))
-		self["postcnt"].setText(postDict.get("postsCounter", "0"))
-		self["thxgiven"].setText(postDict.get("thxGiven", "{keine}"))
-		self["thxreceived"].setText(postDict.get("thxReceived", "{keine})"))
-		self["residence"].setText(f"{postDict.get('residence', '{kein Wohnort benannt}')}")
-		self["registered"].setText(f"Registriert seit {postDict.get('registered', '{unbekannt}').strip("Registriert: ")}")
-		self["datum"].setText(f"Beitrag von {postDict.get('postTime', '')} Uhr")
-		self["textpage"].setText(postDict.get("fullContent", "{ohne Inhalt}"))
+		if postDict:
+			self.postNo = postDict.get("postNumber", "")
+			self.userName = postDict.get("userName", "")
+			avatarPix, filePath = self.handleAvatar(self["avatar"], postDict.get("avatarUrl", ""), self.handleAvatarShow)
+			self.showPic(self["avatar"], f"{filePath if filePath and exists(filePath) else join(self.AVATARPATH, "unknown.png")}")
+			userRank = postDict.get("userRank", "")
+			self.handleIcon(self["userrank"], userRank, self.handleIconShow)
+			online = postDict.get("online", "")
+			self.showPic(self["online"], join(self.PLUGINPATH, f"{'icons/online' if online else 'icons/offline'}_{self.RESOLUTION}.png"), scale=False)
+			self["waiting"].stopBlinking()
+			self["headline"].setText(f"THEMA: {self.threadTitle}")
+			self["postid"].setText(f"ID: {self.postId}")
+			self["username"].setText(self.userName)
+			self["usertitle"].setText(postDict.get("userTitle", ""))
+			self["postcnt"].setText(postDict.get("postsCounter", "0"))
+			self["thxgiven"].setText(postDict.get("thxGiven", "{keine}"))
+			self["thxreceived"].setText(postDict.get("thxReceived", "{keine})"))
+			self["residence"].setText(f"{postDict.get('residence', '{kein Wohnort benannt}')}")
+			self["registered"].setText(f"Registriert seit {postDict.get('registered', '{unbekannt}').strip("Registriert: ")}")
+			self["datum"].setText(f"Beitrag von {postDict.get('postTime', '')} Uhr")
+			self["textpage"].setText(f"{self.postNo}: {postDict.get('fullContent', '{ohne Inhalt}')}")
 		self.ready = True
 
 	def handleAvatarShow(self, widget, url, filePath):
@@ -434,26 +430,21 @@ class openATVPost(ATVhelper):
 		self.showPic(widget, filePath)
 
 	def downloadIcon(self, url, filePath):
-		try:
-			response = get(url, timeout=(3.05, 6))
-			if not response.ok:
-				print(f"{self.MODULE_NAME}] Website access ERROR, response code: {response.raise_for_status()}", "")
-		except exceptions.RequestException as error:
-			errMsg = f"Der opena.tv Server ist zur Zeit nicht erreichbar.\n{error}"
+		errMsg, binaryData = fparser.getBinaryData(url)
+		if errMsg:
 			print(f"[{self.MODULE_NAME}] ERROR in module 'downloadIcon': {errMsg}!")
-			self.session.open(MessageBox, errMsg, MessageBox.TYPE_INFO, timeout=30, close_on_any_key=True)
+			errText = f"Der OpenA.TV Server ist zur Zeit nicht erreichbar.\n{errMsg}"
+			self.session.open(MessageBox, errText, MessageBox.TYPE_INFO, timeout=30, close_on_any_key=True)
 			return
-		try:
-			with open(filePath, "wb") as f:
-				f.write(response.content)
-		except OSError as errMsg:
-			print(f"[{self.MODULE_NAME}] ERROR in module 'downloadIcon': {errMsg}!")
-			self.session.open(MessageBox, errMsg, MessageBox.TYPE_INFO, timeout=30, close_on_any_key=True)
+		if binaryData:
+			try:
+				with open(filePath, "wb") as f:
+					f.write(binaryData)
+			except OSError as errMsg:
+				print(f"[{self.MODULE_NAME}] ERROR in module 'downloadIcon': {errMsg}!")
+				self.session.open(MessageBox, errMsg, MessageBox.TYPE_INFO, timeout=30, close_on_any_key=True)
 		fileParts = filePath.split(".")
-		if SUPPALLIMGS:  # use new function 'detectImageType' in OpenATV 7.6.0 or newer
-			extension = {0: "png", 1: "jpg", 3: "gif", 4: "svg", 5: "webp"}.get(detectImageType(filePath), fileParts[1])
-		else:  # use DEPRECATED function 'what' in OpenATV 7.5.1 or OpenATV 7.5.1 or older
-			extension = what(filePath)
+		extension = {0: "png", 1: "jpg", 3: "gif", 4: "svg", 5: "webp"}.get(detectImageType(filePath), fileParts[1])
 		if extension != fileParts[1]:  # Some avatars could be incorrectly listed in 'url' as .GIF although they are .JPG or .PNG
 			newFname = f"{fileParts[0]}.{extension}"
 			rename(filePath, newFname)  # rename with correct extension
@@ -511,7 +502,7 @@ class openATVMain(ATVhelper):
 		<widget source="version" render="Label" position="290,36" size="43,21" font="Regular;16" halign="left" valign="center" foregroundColor="grey" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1" />
 		<widget source="headline" render="Label" position="340,29" size="610,30" font="Regular;24" halign="left" valign="bottom" wrap="ellipsis" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1" />
 		<widget name="waiting" position="340,29" size="750,30" font="Regular;20" halign="left" valign="bottom" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1" />
-		<widget source="global.CurrentTime" render="Label" position="1080,10" size="130,28" font="Regular;28" noWrap="1" halign="right" valign="top" foregroundColor="#00FFFFFF" backgroundColor="#1A0F0F0F" transparent="1">
+		<widget source="global.CurrentTime" render="Label" position="1080,6" size="130,40" font="Regular;30" noWrap="1" halign="right" valign="top" foregroundColor="#00FFFFFF" backgroundColor="#1A0F0F0F" transparent="1">
 			<convert type="ClockToText">Default</convert>
 		</widget>
 		<widget source="global.CurrentTime" render="Label" position="940,10" size="140,26" font="Regular;20" noWrap="1" halign="right" valign="bottom" foregroundColor="#00FFFFFF" backgroundColor="#1A0F0F0F" transparent="1">
@@ -620,22 +611,22 @@ class openATVMain(ATVhelper):
 		self.offline = LoadPixmap(cached=True, path=statusFile) if exists(statusFile) else None
 		copy2(join(self.PLUGINPATH, "icons/user_stat.png"), self.AVATARPATH)
 		copy2(join(self.PLUGINPATH, "icons/unknown.png"), self.AVATARPATH)
+		self.onLayoutFinish.append(self.layoutFinished)
+
+	def layoutFinished(self):
 		errMsg = fparser.checkServerStatus()
 		if errMsg:
-			self.terminateTimer = eTimer()  # in order to avoid E2 modal error
+			self.terminateTimer = eTimer()  # delayed in order to avoid E2 modal open screen error
 			self.terminateTimer.callback.append(boundFunction(self.terminatePlugin, errMsg))
 			self.terminateTimer.start(200, True)
 		else:
-			self.onLayoutFinish.append(self.layoutFinished)
-
-	def layoutFinished(self):
-		self.showPic(self["button_page"], join(self.PLUGINPATH, f"icons/key_updown_{self.RESOLUTION}.png"), show=False, scale=False)
-		self.showPic(self["button_keypad"], join(self.PLUGINPATH, f"icons/keypad_{self.RESOLUTION}.png"), show=False, scale=False)
-		self.updateYellowButton()
-		if self.favlink or self.threadLink and self.threadLinks:
-			callInThread(self.makeThread, self.displayHTMLerror)
-		else:
-			callInThread(self.makeLatest, self.displayHTMLerror)
+			self.showPic(self["button_page"], join(self.PLUGINPATH, f"icons/key_updown_{self.RESOLUTION}.png"), show=False, scale=False)
+			self.showPic(self["button_keypad"], join(self.PLUGINPATH, f"icons/keypad_{self.RESOLUTION}.png"), show=False, scale=False)
+			self.updateYellowButton()
+			if self.favlink or self.threadLink and self.threadLinks:
+				callInThread(self.makeThread, self.displayHTMLerror)
+			else:
+				callInThread(self.makeLatest, self.displayHTMLerror)
 
 	def terminatePlugin(self, errMsg):
 		self.displayHTMLerror(errMsg)
@@ -673,6 +664,8 @@ class openATVMain(ATVhelper):
 				if "» in" in sourceLine:
 					creation, forum = sourceLine.split("» in")
 					forum = f"in {forum}"
+				else:
+					creation, forum = "", ""
 				latestLine = post.get("latestLine", "")
 				postTime = latestLine[latestLine.find("« ") + 2:] or "{kein Datum}"
 				views, posts = post.get("views", ""), post.get("posts", "")
@@ -683,7 +676,7 @@ class openATVMain(ATVhelper):
 				self.mainTexts.append([title, creation, forum, postTime, userName, stats])
 				self.menuPics.append([None, False])  # 'avatar' and 'online' are not available on starting page
 				startPage = postsInt // self.POSTSPERTHREAD * self.POSTSPERTHREAD
-				self.threadLinks.append(fparser.createThreadUrl(threadId, startPage if threadId else ""))
+				self.threadLinks.append(fparser.createThreadUrl(threadId, startPage if threadId else 0))
 				self.updateSkin()
 		userList = ", ".join(userList)
 		userList = f"{userList[:200]}…" if len(userList) > 200 or userList.endswith(",") else userList
@@ -792,7 +785,7 @@ class openATVMain(ATVhelper):
 			if current < len(self.postList):
 				postDetails = self.postList[current]
 				if postDetails:
-					# self.postList.append((threadTitle, postId, postNo, avatarUrl, online, userName))
+					# postList: (threadTitle, postId, postNo, avatarUrl, online, userName)
 					self.session.openWithCallback(self.keyOkCB, openATVPost, postDetails[0], postDetails[1], self.favMenu, self.threadLinks)
 
 	def keyOkCB(self, home=False):
