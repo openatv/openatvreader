@@ -197,7 +197,7 @@ class FparserHelper:
 			}
 
 	def checkServerStatus(self):
-		fpglobals.BASEURL = f"http://{bytes.fromhex("7265616465722E6F70656E612E7476E"[:-1]).decode()}"
+		fpglobals.BASEURL = bytes.fromhex("687474703A2F2F7265616465722E6F70656E612E7476E"[:-1]).decode()
 		errMsg, _ = self.getHTMLdata(f"{fpglobals.BASEURL}/index.php")
 		return errMsg
 
