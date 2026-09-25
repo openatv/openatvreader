@@ -13,7 +13,7 @@ from shutil import copy2, rmtree
 from twisted.internet.reactor import callInThread
 from urllib.parse import urlparse, parse_qs
 
-from enigma import getDesktop, eTimer, BT_SCALE, BT_KEEP_ASPECT_RATIO
+from enigma import getDesktop, eTimer, detectImageType, BT_SCALE, BT_KEEP_ASPECT_RATIO
 
 from Components.ActionMap import ActionMap, NumberActionMap
 from Components.ConditionalWidget import BlinkingWidget
@@ -28,7 +28,6 @@ from Screens.Screen import Screen
 from Tools.BoundFunction import boundFunction
 from Tools.Directories import resolveFilename, SCOPE_PLUGINS, SCOPE_CONFIG
 from Tools.LoadPixmap import LoadPixmap
-from enigma import detectImageType
 
 from . import __version__
 from .forumparser import fparser
@@ -386,7 +385,7 @@ class openATVPost(ATVhelper):
 		if postDict:
 			self.postNo = postDict.get("postNumber", "")
 			self.userName = postDict.get("userName", "")
-			avatarPix, filePath = self.handleAvatar(self["avatar"], postDict.get("avatarUrl", ""), self.handleAvatarShow)
+			_, filePath = self.handleAvatar(self["avatar"], postDict.get("avatarUrl", ""), self.handleAvatarShow)
 			self.showPic(self["avatar"], f"{filePath if filePath and exists(filePath) else join(self.AVATARPATH, "unknown.png")}")
 			userRank = postDict.get("userRank", "")
 			self.handleIcon(self["userrank"], userRank, self.handleIconShow)
@@ -401,7 +400,7 @@ class openATVPost(ATVhelper):
 			self["thxgiven"].setText(postDict.get("thxGiven", "{keine}"))
 			self["thxreceived"].setText(postDict.get("thxReceived", "{keine})"))
 			self["residence"].setText(f"{postDict.get('residence', '{kein Wohnort benannt}')}")
-			self["registered"].setText(f"Registriert seit {postDict.get('registered', '{unbekannt}').strip("Registriert: ")}")
+			self["registered"].setText(f"Registriert seit {postDict.get('registered', '{unbekannt}').replace('Registriert: ', '')}")
 			self["datum"].setText(f"Beitrag von {postDict.get('postTime', '')} Uhr")
 			self["textpage"].setText(f"{self.postNo}: {postDict.get('fullContent', '{ohne Inhalt}')}")
 		self.ready = True
@@ -669,8 +668,8 @@ class openATVMain(ATVhelper):
 				latestLine = post.get("latestLine", "")
 				postTime = latestLine[latestLine.find("« ") + 2:] or "{kein Datum}"
 				views, posts = post.get("views", ""), post.get("posts", "")
-				stats = ", ".join([views, posts])
-				postsInt = posts.rstrip(" Antworten")
+				stats = f"{views}, {posts}"
+				postsInt = posts.replace(" Antworten", "")
 				postsInt = int(postsInt) if postsInt.isdigit() else 0
 				threadId = post.get("threadId", "")
 				self.mainTexts.append([title, creation, forum, postTime, userName, stats])
@@ -743,7 +742,7 @@ class openATVMain(ATVhelper):
 		skinPix = []
 		for menuPic in self.menuPics if self.currMode == "menu" else self.threadPics:
 			if self.currMode == "thread":
-				avatarPix, filePath = self.handleAvatar(None, menuPic[0])
+				avatarPix, _ = self.handleAvatar(None, menuPic[0])
 				statuspix = self.online if menuPic[1] else self.offline
 			else:
 				avatarPix = None

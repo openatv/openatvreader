@@ -198,7 +198,7 @@ class FparserHelper:
 
 	def checkServerStatus(self):
 		fpglobals.BASEURL = f"http://{bytes.fromhex("7265616465722E6F70656E612E7476E"[:-1]).decode()}"
-		errMsg, htmlData = self.getHTMLdata(f"{fpglobals.BASEURL}/index.php")
+		errMsg, _ = self.getHTMLdata(f"{fpglobals.BASEURL}/index.php")
 		return errMsg
 
 	def parsePost(self, postId=""):
@@ -293,7 +293,7 @@ def main(argv):  # shell interface
 	resultDict = {}
 	helpstring = "forumparser v1.0: try 'python forumparser.py -h' for more information"
 	try:
-		opts, args = getopt(argv, "j:l:t:p:h", ["json=", "latest=", "thread=", "post=", "help"])
+		opts, _ = getopt(argv, "j:l:t:p:h", ["json=", "latest=", "thread=", "post=", "help"])
 	except GetoptError as error:
 		print(f"ERROR: {error}\n{helpstring}")
 		exit(2)
