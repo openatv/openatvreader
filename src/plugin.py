@@ -32,6 +32,9 @@ from Tools.LoadPixmap import LoadPixmap
 from . import __version__
 from .forumparser import fparser
 
+PLUGIN_NAME = "OpenATV Reader"
+PLUGIN_DESCRIPTION = "Das opena.tv Forum bequem auf dem TV mitlesen"
+
 
 class ATVglobals:
 	VERSION = f"v{__version__}"
@@ -938,13 +941,21 @@ def main(session, **kwargs):
 	session.open(openATVMain)
 
 
+def menu(menuid, **kwargs):
+	return [(PLUGIN_NAME, main, "openatv_reader", 10)] if menuid == "support" else []
+
+
 def Plugins(**kwargs):
-	return [PluginDescriptor(name="OpenATV Reader",
-				description="Das opena.tv Forum bequem auf dem TV mitlesen",
+	return [PluginDescriptor(name=PLUGIN_NAME,
+				description=PLUGIN_DESCRIPTION,
 				where=[PluginDescriptor.WHERE_PLUGINMENU],
 				icon="plugin.png", fnc=main),
-			PluginDescriptor(name="OpenATV Reader",
-				description="Das opena.tv Forum bequem auf dem TV mitlesen",
+			PluginDescriptor(name=PLUGIN_NAME,
+				description=PLUGIN_DESCRIPTION,
 				where=[PluginDescriptor.WHERE_EXTENSIONSMENU],
-				fnc=main)
+				fnc=main),
+			PluginDescriptor(name=PLUGIN_NAME,
+				description=PLUGIN_DESCRIPTION,
+				where=[PluginDescriptor.WHERE_MENU],
+				fnc=menu)
 			]
