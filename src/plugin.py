@@ -7,13 +7,14 @@
 #  For other uses, permission from the authors is necessary.                                            #
 #########################################################################################################
 from glob import glob
-from os import rename, makedirs, linesep
-from os.path import join, exists
+from hashlib import md5
+from os import linesep, makedirs, rename
+from os.path import exists, join
+from re import compile, split, sub
 from shutil import copy2, rmtree
-from twisted.internet.reactor import callInThread
-from urllib.parse import urlparse, parse_qs
-
-from enigma import getDesktop, eTimer, detectImageType, BT_SCALE, BT_KEEP_ASPECT_RATIO
+from struct import unpack
+from threading import Lock
+from urllib.parse import parse_qs, urlparse
 
 from Components.ActionMap import ActionMap, NumberActionMap
 from Components.ConditionalWidget import BlinkingWidget
@@ -21,13 +22,23 @@ from Components.Label import Label
 from Components.Pixmap import Pixmap
 from Components.Sources.List import List
 from Components.Sources.StaticText import StaticText
-from Components.ScrollLabel import ScrollLabel
+from enigma import (
+	BT_KEEP_ASPECT_RATIO,
+	BT_SCALE,
+	detectImageType,
+	ePicLoad,
+	ePoint,
+	eSize,
+	eTimer,
+	getDesktop,
+)
 from Plugins.Plugin import PluginDescriptor
 from Screens.MessageBox import MessageBox
 from Screens.Screen import Screen
 from Tools.BoundFunction import boundFunction
-from Tools.Directories import resolveFilename, SCOPE_PLUGINS, SCOPE_CONFIG
+from Tools.Directories import SCOPE_CONFIG, SCOPE_PLUGINS, resolveFilename
 from Tools.LoadPixmap import LoadPixmap
+from twisted.internet.reactor import callFromThread, callInThread
 
 from . import __version__
 from .forumparser import fparser
@@ -39,6 +50,7 @@ PLUGIN_DESCRIPTION = "Das opena.tv Forum bequem auf dem TV mitlesen"
 class ATVglobals:
 	VERSION = f"v{__version__}"
 	AVATARPATH = "/tmp/avatare"
+	IMAGEPATH = "/tmp/avatare/postimages"  # images of posts, removed together with the avatars
 	PLUGINPATH = resolveFilename(SCOPE_PLUGINS, "Extensions/OpenATVreader/")
 	FAVORITEN = resolveFilename(SCOPE_CONFIG, "openatvreader_fav.dat")
 	RESOLUTION = "fHD" if getDesktop(0).size().width() > 1300 else "HD"
@@ -61,7 +73,7 @@ class ATVhelper(Screen, ATVglobals):
 		if filePath and exists(filePath):
 			try:
 				avatarPix = LoadPixmap(cached=True, path=filePath)
-			except Exception as error:
+			except Exception as error:  # noqa: BLE001 - a broken avatar file must not stop the plugin
 				print(f"[{self.MODULE_NAME}] ERROR in module 'handleAvatar': {error}!")
 			if pixUrl in self.avatarDLlist:
 				self.avatarDLlist.remove(pixUrl)
@@ -90,6 +102,77 @@ class ATVhelper(Screen, ATVglobals):
 			if extension != fileParts[1]:  # Some avatars could be incorrectly listed in 'url' as .GIF although they are .JPG or .PNG
 				newFname = f"{fileParts[0]}.{extension}"
 				rename(filePath, newFname)  # rename with correct extension
+
+	def findPostImage(self, url):
+		picsList = glob(join(self.IMAGEPATH, f"{md5(url.encode()).hexdigest()}.*"))
+		picsList = [pic for pic in picsList if not pic.endswith(".tmp")]
+		return picsList[0] if picsList else ""
+
+	def downloadPostImage(self, url):  # returns (errMsg, filePath)
+		errMsg, binaryData = "", b""
+		for _ in range(2):  # external image hosts are sometimes slow, so try twice with a longer timeout
+			errMsg, binaryData = fparser.getBinaryData(url, timeout=(10, 20), checkStatus=True)
+			if not errMsg:
+				break
+		if errMsg or not binaryData:
+			return errMsg or "keine Daten erhalten", ""
+		tempPath = join(self.IMAGEPATH, f"{md5(url.encode()).hexdigest()}.tmp")
+		try:
+			makedirs(self.IMAGEPATH, exist_ok=True)
+			with open(tempPath, "wb") as f:
+				f.write(binaryData)
+			extension = {0: "png", 1: "jpg", 3: "gif", 4: "svg", 5: "webp"}.get(detectImageType(tempPath))
+			if not extension:
+				return "unbekanntes Bildformat", ""
+			filePath = tempPath.replace(".tmp", f".{extension}")
+			rename(tempPath, filePath)
+			return "", filePath
+		except OSError as error:
+			return str(error), ""
+
+	def getImageSize(self, filePath):  # reads (width, height) from the image header, (0, 0) if unknown
+		if not filePath:
+			return 0, 0
+		try:
+			with open(filePath, "rb") as f:
+				data = f.read()
+			if data[:8] == b"\x89PNG\r\n\x1a\n":
+				return unpack(">II", data[16:24])
+			if data[:6] in (b"GIF87a", b"GIF89a"):
+				return unpack("<HH", data[6:10])
+			if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+				if data[12:16] == b"VP8X":
+					return int.from_bytes(data[24:27], "little") + 1, int.from_bytes(data[27:30], "little") + 1
+				if data[12:16] == b"VP8 ":
+					width, height = unpack("<HH", data[26:30])
+					return width & 0x3FFF, height & 0x3FFF
+				if data[12:16] == b"VP8L":
+					bits = int.from_bytes(data[21:25], "little")
+					return (bits & 0x3FFF) + 1, ((bits >> 14) & 0x3FFF) + 1
+			if data[:2] == b"\xff\xd8":
+				pos = 2
+				while pos + 9 < len(data):
+					if data[pos] != 0xFF:
+						pos += 1
+						continue
+					marker = data[pos + 1]
+					if marker in (0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF):  # start of frame
+						height, width = unpack(">HH", data[pos + 5:pos + 9])
+						return width, height
+					if marker == 0xFF or 0xD0 <= marker <= 0xD9 or marker == 0x01:  # fill byte or marker without length
+						pos += 1 if marker == 0xFF else 2
+						continue
+					pos += 2 + unpack(">H", data[pos + 2:pos + 4])[0]
+		except (OSError, IndexError, ValueError) as error:
+			print(f"[{self.MODULE_NAME}] ERROR in module 'getImageSize': {error}!")
+		return 0, 0
+
+	def loadScaledPixmap(self, filePath, width, height):  # decodes the image directly in the needed size (saves memory)
+		if not filePath:
+			return None
+		picLoad = ePicLoad()
+		picLoad.setPara((width, height, 1, 1, False, 1, "#00000000"))
+		return picLoad.getData() if picLoad.startDecode(filePath, 0, 0, False) == 0 else None
 
 	def showPic(self, widget, filePath, show=True, scale=True):
 		if scale:
@@ -143,7 +226,7 @@ class getNumber(ATVhelper):
 		self["version"] = StaticText(self.VERSION)
 		self["headline"] = StaticText()
 		self["number"] = StaticText(self.field)
-		self['actions'] = NumberActionMap(['OkCancelActions'], {
+		self['actions'] = NumberActionMap(['NumberActions', 'OkCancelActions'], {
 			"ok": self.keyOK,
 			"cancel": self.quit,
 			"1": self.keyNumber,
@@ -330,14 +413,31 @@ class openATVPost(ATVhelper):
 		<widget source="registered" render="Label" position="866,106" size="333,28" font="Regular;21" halign="right" valign="center" foregroundColor="#00b2b300" transparent="1" zPosition="1" />
 		<widget source="datum" render="Label" position="866,133" size="333,28" font="Regular;21" halign="right" valign="center" foregroundColor="#005fb300" transparent="1" zPosition="1" />
 		<ePixmap position="13,166" size="1200,1" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/line_HD.png" zPosition="1" />
-		<widget name="textpage" position="26,186" size="1173,433" font="Regular;24" halign="left" foregroundColor="white" scrollbarMode="showOnDemand" transparent="1" zPosition="1" />
-		<ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_red_HD.png" position="14,636" size="26,38" alphatest="blend" />
+		<widget name="textarea" position="26,186" size="1160,433" font="Regular;24" halign="left" foregroundColor="white" transparent="1" zPosition="0" />
+		<widget name="scrollbar" position="1196,186" size="2,433" backgroundColor="#00505050" zPosition="1" />
+		<widget name="scrollthumb" position="1194,186" size="6,40" backgroundColor="#00b3b3b3" zPosition="2" />
+		<widget name="picframe" position="26,186" size="10,10" backgroundColor="#00ffcc00" zPosition="0" />
+"""
+	# pool of widgets for the visible text blocks and images, positioned at runtime
+	skin += "".join(f'<widget name="text{no}" position="26,186" size="1160,30" font="Regular;24" halign="left" foregroundColor="white" transparent="1" zPosition="1" />\n' for no in range(12))
+	skin += "".join(f'<widget name="pic{no}" position="26,186" size="10,10" alphatest="blend" transparent="1" zPosition="1" />\n' for no in range(6))
+	skin += """		<ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_red_HD.png" position="14,636" size="26,38" alphatest="blend" />
+		<widget name="button_green" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_green_HD.png" position="224,636" size="26,38" alphatest="blend" />
 		<ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_yellow_HD.png" position="434,636" size="26,38" alphatest="blend" />
 		<ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_blue_HD.png" position="644,636" size="26,38" alphatest="blend" />
 		<widget source="key_red" render="Label" position="36,636" size="180,38" zPosition="1" valign="center" font="Regular;18" halign="left" foregroundColor="#00b3b3b3" backgroundColor="#1A0F0F0F" transparent="1" />
+		<widget source="key_green" render="Label" position="246,636" size="180,38" zPosition="1" valign="center" font="Regular;18" halign="left" foregroundColor="#00b3b3b3" backgroundColor="#1A0F0F0F" transparent="1" />
 		<widget source="key_yellow" render="Label" position="456,636" size="180,38" zPosition="1" valign="center" font="Regular;18" halign="left" foregroundColor="#00b3b3b3" backgroundColor="#1A0F0F0F" transparent="1" />
 		<widget source="key_blue" render="Label" position="666,636" size="180,38" zPosition="1" valign="center" font="Regular;18" halign="left" foregroundColor="#00b3b3b3" backgroundColor="#1A0F0F0F" transparent="1" />
 	</screen>"""
+
+	TEXTWIDGETS = 12  # size of the widget pools in the skin
+	PICWIDGETS = 6
+	BLOCKGAP = 8  # vertical space around images
+	MARKER = compile(r"\[(Link|Bild)\u00a0(\d+)\]")  # markers in the text, joined by a no-break space so they never get wrapped
+	COLORLINK = "\\c0092cbdf"  # eLabel color codes
+	COLORSELECTED = "\\c00ffcc00"
+	COLORRESET = "\\C"
 
 	def __init__(self, session, threadTitle, postId, favMenu, threadLinks):
 		if self.RESOLUTION == "fHD":
@@ -350,19 +450,37 @@ class openATVPost(ATVhelper):
 		self.ready = False
 		self.avatarDLlist = []  # is required, don't remove
 		self.postNo = ""
+		self.userName = ""
+		self.links, self.images = [], []
+		self.content = ""
+		self.imageFiles, self.pixmapCache = {}, {}  # downloaded images {imageIndex: filePath}, decoded pixmaps {(imageIndex, width, height): pixmap}
+		self.rows, self.topRow, self.lineHeight = [], 0, 0  # layout rows: ("text", line, height) or ("pic", (imageIndex, width, height), height)
+		self.targets, self.selected = [], None  # images & links which can be opened with OK: (rowNo, "image"|"link", index, occurrence in row)
+		self.closed = False
 		self["waiting"] = BlinkingLabel("bitte warten...")
 		self["waiting"].startBlinking()
 		self["waiting"].show()
 		self["version"] = StaticText(self.VERSION)
-		for widget in ["headline", "postid", "username", "usertitle", "postcnt", "thxgiven", "thxreceived", "registered", "residence", "datum"]:
+		for widget in ["headline", "postid", "username", "usertitle", "postcnt", "thxgiven", "thxreceived", "registered", "residence", "datum", "key_green"]:
 			self[widget] = StaticText()
-		for widget in ["online", "avatar", "userrank"]:
+		for widget in ["online", "avatar", "userrank", "button_green"]:
 			self[widget] = Pixmap()
-		self["textpage"] = ScrollLabel()
+		self["button_green"].hide()
+		self["textarea"] = Label()  # invisible: defines the text area and is used to measure the height of text blocks
+		self["textarea"].hide()
+		for widgetNo in range(self.TEXTWIDGETS):
+			self[f"text{widgetNo}"] = Label()
+		for widgetNo in range(self.PICWIDGETS):
+			self[f"pic{widgetNo}"] = Pixmap()
+			self[f"pic{widgetNo}"].hide()
+		for widget in ["scrollbar", "scrollthumb", "picframe"]:
+			self[widget] = Label()
+			self[widget].hide()
 		self["key_red"] = StaticText("Favorit hinzufügen")
 		self["key_yellow"] = StaticText("Favoriten aufrufen")
 		self["key_blue"] = StaticText("Startseite")
 		self["NumberActions"] = ActionMap(["NumberActions", "OkCancelActions", "DirectionActions", "ChannelSelectBaseActions", "ColorActions"], {
+			"ok": self.keyOk,
 			"cancel": self.keyExit,
 			"down": self.keyDown,
 			"up": self.keyUp,
@@ -371,23 +489,40 @@ class openATVPost(ATVhelper):
 			"nextBouquet": self.keyPageDown,
 			"prevBouquet": self.keyPageUp,
 			"red": self.keyRed,
+			"green": self.keyGreen,
 			"yellow": self.keyYellow,
 			"blue": self.keyBlue
 		}, -1)
 		self.onLayoutFinish.append(self.onLayoutFinished)
+		self.onClose.append(self.setClosed)
 
 	def onLayoutFinished(self):
 		callInThread(self.makePost)
 
+	def setClosed(self):
+		self.closed = True  # running download threads must not touch the widgets anymore
+
 	def makePost(self):
-		self.ready = False
 		errMsg, postDict = fparser.parsePost(self.postId)
+		callFromThread(self.showPost, errMsg, postDict)  # the page layout has to be done in the main thread
+
+	def showPost(self, errMsg, postDict):
+		if self.closed:
+			return
+		self.ready = False
 		if errMsg:
+			self["waiting"].stopBlinking()
+			self.ready = True  # otherwise the screen could not be closed anymore
 			self.session.open(MessageBox, f"FEHLER: {errMsg}", type=MessageBox.TYPE_ERROR, timeout=5, close_on_any_key=True)
 			return
 		if postDict:
 			self.postNo = postDict.get("postNumber", "")
 			self.userName = postDict.get("userName", "")
+			self.threadTitle = postDict.get("threadTitle", "") or self.threadTitle  # linked posts could be part of another thread
+			self.links, self.images = postDict.get("links", []), postDict.get("images", [])
+			if self.images:
+				self["key_green"].setText(f"Bilder ({len(self.images)})")
+				self["button_green"].show()
 			_, filePath = self.handleAvatar(self["avatar"], postDict.get("avatarUrl", ""), self.handleAvatarShow)
 			self.showPic(self["avatar"], f"{filePath if filePath and exists(filePath) else join(self.AVATARPATH, "unknown.png")}")
 			userRank = postDict.get("userRank", "")
@@ -405,8 +540,211 @@ class openATVPost(ATVhelper):
 			self["residence"].setText(f"{postDict.get('residence', '{kein Wohnort benannt}')}")
 			self["registered"].setText(f"Registriert seit {postDict.get('registered', '{unbekannt}').replace('Registriert: ', '')}")
 			self["datum"].setText(f"Beitrag von {postDict.get('postTime', '')} Uhr")
-			self["textpage"].setText(f"{self.postNo}: {postDict.get('fullContent', '{ohne Inhalt}')}")
+			self.content = f"{self.postNo}: {postDict.get('fullContent', '{ohne Inhalt}')}"
+			self.buildRows()
+			self.showRows(0)
+			if self.images:
+				callInThread(self.loadImages)
 		self.ready = True
+
+	def loadImages(self):
+		for index, url in enumerate(self.images):
+			if self.closed:
+				return
+			filePath = self.findPostImage(url)
+			if not filePath:
+				errMsg, filePath = self.downloadPostImage(url)
+				if errMsg:
+					print(f"[{self.MODULE_NAME}] ERROR in module 'loadImages': {url}: {errMsg}!")
+			if filePath:
+				callFromThread(self.imageLoaded, index, filePath)
+
+	def imageLoaded(self, index, filePath):
+		if self.closed:
+			return
+		self.imageFiles[index] = filePath
+		topRowData = self.rows[self.topRow][1] if self.rows else None  # keep the position: look for the current top line again
+		topRow = self.topRow
+		selectedTarget = self.targets[self.selected][1:3] if self.selected is not None else None
+		self.buildRows()
+		self.selected = next((index for index, target in enumerate(self.targets) if target[1:3] == selectedTarget), None)
+		if topRow:
+			topRow = next((index for index, row in enumerate(self.rows) if row[1] == topRowData and index >= topRow - 5), topRow)
+		self.showRows(topRow)
+
+	def measureText(self, text):
+		self["textarea"].setText(text)
+		return self["textarea"].instance.calculateSize().height()
+
+	def isSingleLine(self, text):
+		return self.measureText(text) < self.lineHeight * 1.5
+
+	def wrapParagraph(self, paragraph):  # split a paragraph into the lines the label would show
+		if self.isSingleLine(paragraph):
+			return [paragraph]
+		lines, line = [], ""
+		for word in paragraph.split(" "):
+			candidate = f"{line} {word}" if line else word
+			if self.isSingleLine(candidate):
+				line = candidate
+				continue
+			if line:
+				lines.append(line)
+			while not self.isSingleLine(word):  # a single word wider than the text area (e.g. long URLs)
+				low, high = 1, len(word)
+				while low < high:  # find the longest fitting prefix
+					middle = (low + high + 1) // 2
+					if self.isSingleLine(word[:middle]):
+						low = middle
+					else:
+						high = middle - 1
+				lines.append(word[:low])
+				word = word[low:]
+			line = word
+		return lines + [line]
+
+	def buildRows(self):  # convert the content into rows of text lines and images for scrolling
+		areaSize = self["textarea"].instance.size()
+		areaWidth, areaHeight = areaSize.width(), areaSize.height()
+		self.lineHeight = self.measureText("X\nX") - self.measureText("X")  # distance between two lines of the label
+		self.rows = []
+		text = ""
+
+		def addText(text):
+			text = sub(r"\[(Link|Bild) (\d+)\]", "[\\1\u00a0\\2]", text)
+			for paragraph in text.strip("\n").split("\n"):
+				for line in self.wrapParagraph(paragraph):
+					self.rows.append(("text", line, self.lineHeight))
+
+		for partNo, part in enumerate(split(r"\[Bild (\d+)\]", self.content)):
+			if partNo % 2:  # loaded images become their own row, otherwise the marker '[Bild n]' remains in the text
+				imageIndex = int(part) - 1
+				width, height = self.getImageSize(self.imageFiles.get(imageIndex, ""))
+				if width and height:
+					addText(text)
+					text = ""
+					scale = min(1.0, areaWidth / width, (areaHeight - self.BLOCKGAP) / height)
+					width, height = max(1, int(width * scale)), max(1, int(height * scale))
+					self.rows.append(("pic", (imageIndex, width, height), height + self.BLOCKGAP))
+				else:
+					text += f"[Bild {part}]"
+			else:
+				text += part
+		addText(text)
+		self.targets = []
+		for rowNo, (rowType, data, height) in enumerate(self.rows):
+			if rowType == "pic":
+				self.targets.append((rowNo, "image", data[0], 0))
+			else:
+				for occurrence, match in enumerate(self.MARKER.finditer(data)):
+					self.targets.append((rowNo, "image" if match.group(1) == "Bild" else "link", int(match.group(2)) - 1, occurrence))
+
+	def visibleTargets(self):
+		lastRow = self.topRow + self.visibleRows(self.topRow)
+		return [index for index, target in enumerate(self.targets) if self.topRow <= target[0] < lastRow]
+
+	def colorizeLine(self, rowNo, text):  # links/images in the text get colored, the selected one highlighted
+		selected = self.targets[self.selected] if self.selected is not None else None
+		occurrence = -1
+
+		def color(match):
+			nonlocal occurrence
+			occurrence += 1
+			isSelected = selected and selected[0] == rowNo and selected[3] == occurrence
+			return f"{self.COLORSELECTED if isSelected else self.COLORLINK}{match.group(0)}{self.COLORRESET}"
+
+		return self.MARKER.sub(color, text)
+
+	def visibleRows(self, topRow):  # number of rows which fit completely into the text area, starting at 'topRow'
+		areaHeight = self["textarea"].instance.size().height()
+		used, count = 0, 0
+		for row in self.rows[topRow:]:
+			if used + row[2] > areaHeight:
+				break
+			used += row[2]
+			count += 1
+		return max(1, count)
+
+	def maxTopRow(self):
+		row, used = len(self.rows), 0
+		areaHeight = self["textarea"].instance.size().height()
+		while row > 0 and used + self.rows[row - 1][2] <= areaHeight:
+			row -= 1
+			used += self.rows[row][2]
+		return min(row, max(0, len(self.rows) - 1))
+
+	def showRows(self, topRow, selectLast=False):
+		self.topRow = max(0, min(topRow, self.maxTopRow()))
+		visible = self.visibleTargets()
+		if self.selected not in visible:  # the selection follows the scrolling
+			self.selected = (visible[-1] if selectLast else visible[0]) if visible else None
+		selectedRow = self.targets[self.selected][0] if self.selected is not None else -1
+		areaPos = self["textarea"].instance.position()
+		areaSize = self["textarea"].instance.size()
+		for widgetNo in range(self.TEXTWIDGETS):
+			self[f"text{widgetNo}"].hide()
+		for widgetNo in range(self.PICWIDGETS):
+			self[f"pic{widgetNo}"].hide()
+		self["picframe"].hide()
+		textNo, picNo, posY, lines = 0, 0, 0, []
+
+		def flushText():  # consecutive text lines share one label
+			nonlocal textNo, lines
+			if lines and textNo < self.TEXTWIDGETS:
+				widget = self[f"text{textNo}"]
+				textNo += 1
+				widget.setText("\n".join(self.colorizeLine(rowNo, line) for rowNo, line in lines))
+				widget.instance.resize(eSize(areaSize.width(), (len(lines) + 1) * self.lineHeight))
+				widget.instance.move(ePoint(areaPos.x(), areaPos.y() + posY - len(lines) * self.lineHeight))
+				widget.show()
+			lines = []
+
+		for rowNo in range(self.topRow, self.topRow + self.visibleRows(self.topRow)):
+			rowType, data, height = self.rows[rowNo]
+			if rowType == "text":
+				lines.append((rowNo, data))
+			else:
+				flushText()
+				imageIndex, width, picHeight = data
+				pixmap = self.getScaledPixmap(imageIndex, width, picHeight)
+				if pixmap and picNo < self.PICWIDGETS:
+					widget = self[f"pic{picNo}"]
+					picNo += 1
+					widget.instance.resize(eSize(width, picHeight))
+					widget.instance.move(ePoint(areaPos.x(), areaPos.y() + posY + self.BLOCKGAP // 2))
+					widget.instance.setPixmap(pixmap)
+					widget.show()
+					if rowNo == selectedRow:
+						frame = self.BLOCKGAP // 2
+						self["picframe"].instance.resize(eSize(width + 2 * frame, picHeight + 2 * frame))
+						self["picframe"].instance.move(ePoint(areaPos.x() - frame, areaPos.y() + posY))
+						self["picframe"].show()
+			posY += height
+		flushText()
+		self.updateScrollbar()
+
+	def updateScrollbar(self):
+		areaHeight = self["textarea"].instance.size().height()
+		totalHeight = sum(row[2] for row in self.rows)
+		if totalHeight <= areaHeight:
+			self["scrollbar"].hide()
+			self["scrollthumb"].hide()
+			return
+		barPos = self["scrollbar"].instance.position()
+		thumbWidth = self["scrollthumb"].instance.size().width()
+		offset = sum(row[2] for row in self.rows[:self.topRow])
+		thumbHeight = max(10, areaHeight * areaHeight // totalHeight)
+		thumbPos = min(areaHeight - thumbHeight, offset * areaHeight // totalHeight)
+		self["scrollthumb"].instance.resize(eSize(thumbWidth, thumbHeight))
+		self["scrollthumb"].instance.move(ePoint(self["scrollthumb"].instance.position().x(), barPos.y() + thumbPos))
+		self["scrollbar"].show()
+		self["scrollthumb"].show()
+
+	def getScaledPixmap(self, imageIndex, width, height):
+		key = (imageIndex, width, height)
+		if key not in self.pixmapCache:
+			self.pixmapCache[key] = self.loadScaledPixmap(self.imageFiles.get(imageIndex, ""), width, height)
+		return self.pixmapCache[key]
 
 	def handleAvatarShow(self, widget, url, filePath):
 		self.downloadAvatar(url, filePath)
@@ -451,6 +789,29 @@ class openATVPost(ATVhelper):
 			newFname = f"{fileParts[0]}.{extension}"
 			rename(filePath, newFname)  # rename with correct extension
 
+	def keyGreen(self):  # image gallery: starts with the selected image, otherwise with the first one
+		if self.ready and self.images:
+			selected = self.targets[self.selected] if self.selected is not None else None
+			self.session.open(openATVImage, self.images, selected[2] if selected and selected[1] == "image" else 0)
+
+	def keyOk(self):
+		if self.ready and self.selected is not None:
+			self.openTarget(*self.targets[self.selected][1:3])
+
+	def openTarget(self, targetType, index):
+		if targetType == "image":
+			self.session.open(openATVImage, self.images, index)
+			return
+		link = self.links[index]
+		if link["type"] == "post":
+			self.session.openWithCallback(self.keyLinkCB, openATVPost, "", link["target"], self.favMenu, self.threadLinks)
+		else:
+			self.session.openWithCallback(self.keyLinkCB, openATVMain, threadLinks=self.threadLinks, favlink=link["target"], favMenu=True)
+
+	def keyLinkCB(self, home=False):
+		if home:
+			self.close(True)
+
 	def keyYellow(self):
 		if self.favMenu:
 			self.session.open(MessageBox, "Dieses Fenster wurde bereits als Favorit geöffnet!\nUm auf die Favoritenliste zurückzukommen, bitte 2x 'Verlassen/Exit' drücken!\n", type=MessageBox.TYPE_INFO, timeout=5, close_on_any_key=True)
@@ -478,23 +839,141 @@ class openATVPost(ATVhelper):
 
 	def keyDown(self):
 		if self.ready:
-			self["textpage"].pageDown()
+			if self.selected is not None and self.selected + 1 in self.visibleTargets():
+				self.selected += 1
+				self.showRows(self.topRow)
+			else:
+				self.showRows(self.topRow + 1)
 
 	def keyUp(self):
 		if self.ready:
-			self["textpage"].pageUp()
+			if self.selected is not None and self.selected - 1 in self.visibleTargets():
+				self.selected -= 1
+				self.showRows(self.topRow)
+			else:
+				self.showRows(self.topRow - 1, selectLast=True)
 
 	def keyPageDown(self):
 		if self.ready:
-			self["textpage"].pageDown()
+			self.showRows(self.topRow + self.visibleRows(self.topRow))
 
 	def keyPageUp(self):
 		if self.ready:
-			self["textpage"].pageUp()
+			row, used = self.topRow, 0
+			areaHeight = self["textarea"].instance.size().height()
+			while row > 0 and used + self.rows[row - 1][2] <= areaHeight:
+				row -= 1
+				used += self.rows[row][2]
+			self.showRows(row if row < self.topRow else self.topRow - 1, selectLast=True)
 
 	def keyExit(self):
 		if self.ready:  # wait on thread was finished
 			self.close()
+
+
+class openATVImage(ATVhelper):
+	skin = """
+	<screen name="openATVImage" position="center,center" size="1233,680" backgroundColor="#1A0F0F0F" resolution="1280,720" title=" ">
+		<ePixmap position="10,10" size="300,50" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/openATV_HD.png" alphatest="blend" zPosition="1" />
+		<widget source="version" render="Label" position="290,36" size="43,21" font="Regular;16" halign="left" valign="center" foregroundColor="grey" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1" />
+		<widget source="headline" render="Label" position="330,28" size="630,30" font="Regular;24" halign="left" valign="center" wrap="ellipsis" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1" />
+		<widget name="waiting" position="340,29" size="750,30" font="Regular;20" halign="left" valign="bottom" backgroundColor="#1A0F0F0F" transparent="1" zPosition="2" />
+		<ePixmap position="13,66" size="1200,1" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/line_HD.png" zPosition="1" />
+		<widget name="picture" position="13,72" size="1200,552" alphatest="blend" transparent="1" zPosition="1" />
+		<widget source="picinfo" render="Label" position="13,300" size="1200,90" font="Regular;22" halign="center" valign="center" foregroundColor="grey" backgroundColor="#1A0F0F0F" transparent="1" zPosition="2" />
+		<ePixmap position="13,630" size="1200,1" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/line_HD.png" zPosition="1" />
+		<widget source="url" render="Label" position="13,636" size="900,38" font="Regular;16" halign="left" valign="center" wrap="ellipsis" foregroundColor="grey" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1" />
+		<widget source="key_page" render="Label" position="913,636" size="300,38" font="Regular;18" halign="right" valign="center" foregroundColor="grey" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1" />
+	</screen>"""
+
+	def __init__(self, session, images, index=0):
+		if self.RESOLUTION == "fHD":
+			self.skin = self.skin.replace("_HD.png", "_fHD.png")
+		Screen.__init__(self, session, self.skin)
+		self.images = images
+		self.index = index
+		self["waiting"] = BlinkingLabel("bitte warten...")
+		self["version"] = StaticText(self.VERSION)
+		for widget in ["headline", "picinfo", "url"]:
+			self[widget] = StaticText()
+		self["key_page"] = StaticText("links/rechts: Bild zurück/vor" if len(images) > 1 else "")
+		self["picture"] = Pixmap()
+		self.area = None
+		self.closed = False
+		self["actions"] = ActionMap(["OkCancelActions", "DirectionActions"], {
+			"ok": self.close,
+			"cancel": self.close,
+			"left": self.prevImage,
+			"up": self.prevImage,
+			"right": self.nextImage,
+			"down": self.nextImage
+		}, -1)
+		self.onLayoutFinish.append(self.showImage)
+		self.onClose.append(self.setClosed)
+
+	def setClosed(self):
+		self.closed = True
+
+	def showImage(self):
+		url = self.images[self.index]
+		self["headline"].setText(f"Bild {self.index + 1} von {len(self.images)}")
+		self["url"].setText(url)
+		self["picinfo"].setText("")
+		self["picture"].hide()
+		filePath = self.findPostImage(url)
+		if filePath:
+			self["waiting"].stopBlinking()
+			self.displayImage(filePath)
+		else:
+			self["waiting"].startBlinking()
+			self["waiting"].show()
+			callInThread(self.downloadImage, self.index, url)
+
+	def downloadImage(self, index, url):
+		errMsg, filePath = self.downloadPostImage(url)
+		callFromThread(self.imageLoaded, index, errMsg, filePath)
+
+	def imageLoaded(self, index, errMsg, filePath):
+		if self.closed or index != self.index:  # screen closed or user has already switched to another image
+			return
+		self["waiting"].stopBlinking()
+		if filePath:
+			self.displayImage(filePath)
+		else:
+			print(f"[{self.MODULE_NAME}] ERROR in module 'downloadImage': {errMsg}!")
+			self["picinfo"].setText(f"Das Bild konnte nicht geladen werden:\n{errMsg}")
+
+	def displayImage(self, filePath):  # scale the image to fit into the picture area (max. twice its size) and center it
+		widget = self["picture"]
+		if not self.area:  # the widget gets moved & resized, so remember its skin geometry
+			pos, size = widget.instance.position(), widget.instance.size()
+			self.area = (pos.x(), pos.y(), size.width(), size.height())
+		areaX, areaY, areaWidth, areaHeight = self.area
+		width, height = self.getImageSize(filePath)
+		pixmap = None
+		if width and height:
+			scale = min(2.0, areaWidth / width, areaHeight / height)
+			width, height = max(1, int(width * scale)), max(1, int(height * scale))
+			pixmap = self.loadScaledPixmap(filePath, width, height)
+		if pixmap:
+			widget.instance.resize(eSize(width, height))
+			widget.instance.move(ePoint(areaX + (areaWidth - width) // 2, areaY + (areaHeight - height) // 2))
+			widget.instance.setPixmap(pixmap)
+			widget.show()
+		else:  # e.g. SVG: let enigma2 load and scale it
+			widget.instance.resize(eSize(areaWidth, areaHeight))
+			widget.instance.move(ePoint(areaX, areaY))
+			self.showPic(widget, filePath)
+
+	def prevImage(self):
+		if len(self.images) > 1:
+			self.index = (self.index - 1) % len(self.images)
+			self.showImage()
+
+	def nextImage(self):
+		if len(self.images) > 1:
+			self.index = (self.index + 1) % len(self.images)
+			self.showImage()
 
 
 class openATVMain(ATVhelper):
@@ -555,11 +1034,11 @@ class openATVMain(ATVhelper):
 		<widget source="key_keypad" render="Label" position="1066,636" size="200,38" font="Regular;18" foregroundColor="grey" backgroundColor="#1A0F0F0F" transparent="1" halign="left" valign="center" />
 	</screen>"""
 
-	def __init__(self, session, threadLinks=[], favlink="", favMenu=False):
+	def __init__(self, session, threadLinks=None, favlink="", favMenu=False):
 		if self.RESOLUTION == "fHD":
 			self.skin = self.skin.replace("_HD.png", "_fHD.png")
 		Screen.__init__(self, session, self.skin)
-		self.threadLinks = threadLinks  # required when called by OpenATVFav
+		self.threadLinks = threadLinks or []  # required when called by OpenATVFav
 		self.favlink = favlink
 		self.favMenu = favMenu
 		self.ready = False
@@ -567,6 +1046,7 @@ class openATVMain(ATVhelper):
 		self.currPage, self.maxPages = 1, 1
 		self.oldmenuindex, self.menuindex, self.threadindex = 0, 0, 0
 		self.postList, self.mainTexts, self.threadTexts, self.menuPics, self.threadPics, self.avatarDLlist = [], [], [], [], [], []
+		self.skinLock = Lock()  # avatar download threads and page loads update the list concurrently
 		self.currMode = "menu"
 		self["version"] = StaticText(self.VERSION)
 		self["waiting"] = BlinkingLabel("bitte warten...")
@@ -580,7 +1060,7 @@ class openATVMain(ATVhelper):
 		self["key_red"] = StaticText("Favorit hinzufügen")
 		self["key_green"] = StaticText("Aktualisieren")
 		self["menu"] = List([])
-		self["NumberActions"] = NumberActionMap(["NumberActions", "WizardActions", "ChannelSelectBaseActions", "ColorActions"], {
+		self["NumberActions"] = NumberActionMap(["NumberActions", "WizardActions", "ChannelSelectBaseActions", "PreviousNextActions", "ColorActions"], {
 			"ok": self.keyOk,
 			"back": self.keyExit,
 			"red": self.keyRed,
@@ -593,6 +1073,8 @@ class openATVMain(ATVhelper):
 			"left": self.keyPageUp,
 			"nextBouquet": self.prevPage,
 			"prevBouquet": self.nextPage,
+			"previous": self.prevPage,
+			"next": self.nextPage,
 			"0": self.gotoPage,
 			"1": self.gotoPage,
 			"2": self.gotoPage,
@@ -700,20 +1182,26 @@ class openATVMain(ATVhelper):
 		self["waiting"].show()
 		self["headline"].setText("")
 		self["key_blue"].setText("Startmenu")
-		self.postList, self.threadPics, self.threadTexts = [], [], []
+		with self.skinLock:
+			self.postList, self.threadPics, self.threadTexts = [], [], []
 		self.ready = False
 		errMsg, threadDict = fparser.parseThread(threadUrl=self.favlink if self.favlink else self.threadLink)
 		if errMsg:
 			errorCallBack(errMsg=errMsg)
 		threadTitle = threadDict.get("threadTitle", "{kein Titel gefunden}")
 		self.currPage, self.maxPages = threadDict.get("currPage", 1), threadDict.get("maxPages", 1)
+		threadId = threadDict.get("threadId")
+		if threadId:  # keep the link of the current page, so paging & refresh also work for favorites and linked threads
+			self.threadLink = fparser.createThreadUrl(threadId, (self.currPage - 1) * self.POSTSPERTHREAD)
 		self["waiting"].stopBlinking()
 		self["headline"].setText(f"THEMA: {threadTitle}")
 		self["pagecount"].setText(f"Seite {self.currPage} von {self.maxPages}")
+		# build the lists locally first: avatar download threads call 'updateSkin' meanwhile and must never see half-filled lists
+		postList, threadPics, threadTexts, avatarUrls = [], [], [], []
 		for post in threadDict.get("posts", []):
 			postId, postNo, online = post.get("postId", ""), post.get("postNumber", ""), post.get("online", "")
 			avatarUrl = post.get("avatarUrl", "")
-			self.handleAvatar(None, avatarUrl, callback=self.handleAvatarUpdate)  # trigger download & update of avatar
+			avatarUrls.append(avatarUrl)
 			userName = post.get("userName", "")
 			if "gelöschter benutzer" in userName.lower():
 				userName = "{gelöscht}"
@@ -721,13 +1209,17 @@ class openATVMain(ATVhelper):
 			postTime = post.get("postTime", "{kein Datum/Uhrzeit}")
 			shortCont = post.get("shortContent", "")
 			shortCont = f"{postNo}: {shortCont[:280]}{shortCont[280:shortCont.find(' ', 280)]}…" if len(shortCont) > 280 else f"{postNo}: {shortCont}"
-			self.threadTexts.append([shortCont, postTime, userName, postCnt])
-			self.threadPics.append([avatarUrl, online])
-			self.postList.append((threadTitle, postId, postNo, avatarUrl, online, userName))
+			threadTexts.append([shortCont, postTime, userName, postCnt])
+			threadPics.append([avatarUrl, online])
+			postList.append((threadTitle, postId, postNo, avatarUrl, online, userName))
 		userList = ", ".join(threadDict.get("user", []))
 		userList = f"beteiligte Benutzer\n{userList[:200]}…" if len(userList) > 200 or userList.endswith(",") else f"beteiligte Benutzer\n{userList}"
-		self.threadTexts.append([userList, "", "", ""])
-		self.threadPics.append(["./user_stat.png", False])
+		threadTexts.append([userList, "", "", ""])
+		threadPics.append(["./user_stat.png", False])
+		with self.skinLock:
+			self.postList, self.threadPics, self.threadTexts = postList, threadPics, threadTexts
+		for avatarUrl in avatarUrls:
+			self.handleAvatar(None, avatarUrl, callback=self.handleAvatarUpdate)  # trigger download & update of avatar
 		self.ready = True
 		self.updateSkin()
 		if self.favMenu and self.favlink:
@@ -742,19 +1234,20 @@ class openATVMain(ATVhelper):
 			self["menu"].goLineUp()  # last entry is always the summary 'beteiligte Benutzer'
 
 	def updateSkin(self):
-		skinPix = []
-		for menuPic in self.menuPics if self.currMode == "menu" else self.threadPics:
-			if self.currMode == "thread":
-				avatarPix, _ = self.handleAvatar(None, menuPic[0])
-				statuspix = self.online if menuPic[1] else self.offline
-			else:
-				avatarPix = None
-				statuspix = None
-			skinPix.append([self.linePix, avatarPix, statuspix])
-		skinlist = []
-		for idx, menulist in enumerate(self.mainTexts if self.currMode == "menu" else self.threadTexts):
-			skinlist.append(tuple(menulist + skinPix[idx]))
-		self["menu"].updateList(skinlist)
+		with self.skinLock:  # serialize concurrent calls, otherwise an outdated (shorter) list could overwrite the complete one
+			skinPix = []
+			for menuPic in self.menuPics if self.currMode == "menu" else self.threadPics:
+				if self.currMode == "thread":
+					avatarPix, _ = self.handleAvatar(None, menuPic[0])
+					statuspix = self.online if menuPic[1] else self.offline
+				else:
+					avatarPix = None
+					statuspix = None
+				skinPix.append([self.linePix, avatarPix, statuspix])
+			skinlist = []
+			for menulist, pixlist in zip(self.mainTexts if self.currMode == "menu" else self.threadTexts, skinPix):
+				skinlist.append(tuple(menulist + pixlist))
+			self["menu"].updateList(skinlist)
 		if self.currMode == "thread" and self.maxPages > 1:
 			self["button_page"].show()
 			self["button_keypad"].show()

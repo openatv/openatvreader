@@ -1,7 +1,7 @@
 Package: enigma2-plugin-extensions-openatvreader
-Version: 2.1
+Version: 2.5
 Section: extra
 Architecture: all
 Maintainer: Mr.Servo
 Source: https://github.com/openatv/openatvreader
-Description: openATV Reader v2.1
+Description: openATV Reader v2.5

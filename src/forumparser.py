@@ -13,18 +13,23 @@
 #######################################################################################################
 
 # PYTHON IMPORTS
-from bs4 import BeautifulSoup, Tag
-from getopt import getopt, GetoptError
+from getopt import GetoptError, getopt
 from json import dump
-from re import compile
-from requests import get, exceptions
-from sys import exit, argv
+from re import IGNORECASE, compile, sub
+from sys import argv, exit
+from urllib.parse import parse_qs, parse_qsl, urlencode, urljoin, urlparse, urlunparse
+
+from bs4 import BeautifulSoup, Tag
+from requests import exceptions, get
+
 MODULE_NAME = __name__.split(".")[-1]
 
 
 class FParserGlobals:
 	MODULE_NAME: str = __name__.split(".")[-1]
 	BASEURL: str = "https://www.opena.tv"
+	FORUMHOSTS: tuple = ("opena.tv", "www.opena.tv", "reader.opena.tv")
+	IMAGEEXTENSIONS: tuple = (".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp")
 
 
 fpglobals = FParserGlobals()
@@ -40,9 +45,11 @@ class FparserHelper:
 			print(f"[{MODULE_NAME}] ERROR in module 'getHTMLdata': {errMsg}")
 			return errMsg, None
 
-	def getBinaryData(self, url, timeout=(3.05, 6)):
+	def getBinaryData(self, url, timeout=(3.05, 6), checkStatus=False):
 		try:
 			response = get(url, timeout=timeout)
+			if checkStatus:  # don't return error pages (e.g. 403) as image data
+				response.raise_for_status()
 			return None, response.content
 		except exceptions.RequestException as errMsg:
 			errMsg = str(errMsg).replace(fpglobals.BASEURL.replace("http://", ""), "").replace("host=,'", "")
@@ -55,8 +62,85 @@ class FparserHelper:
 	def createPostUrl(self, postId):
 		return f"{fpglobals.BASEURL}/viewtopic.php?p={postId}#p{postId}" if postId else ""
 
+	def absoluteUrl(self, url):  # resolve relative forum links, remove the session id and use the reader host for forum links
+		parsed = urlparse(urljoin(f"{fpglobals.BASEURL}/", url.strip()))
+		if parsed.hostname in fpglobals.FORUMHOSTS:  # www.opena.tv refuses requests of the plugin (403), the reader host delivers the same files
+			base = urlparse(fpglobals.BASEURL)
+			parsed = parsed._replace(scheme=base.scheme, netloc=base.netloc)
+		query = [(key, value) for key, value in parse_qsl(parsed.query, keep_blank_values=True) if key != "sid"]
+		return urlunparse(parsed._replace(query=urlencode(query)))
+
+	def classifyLink(self, url):  # returns (type, target): ("post", postId), ("thread", threadUrl), ("image", url) or ("extern", url)
+		parsed = urlparse(url)
+		query = parse_qs(parsed.query)
+		path = parsed.path.lower()
+		if parsed.hostname in fpglobals.FORUMHOSTS and path.endswith("viewtopic.php"):
+			postId = query.get("p", [""])[0]
+			if not postId.isdigit() and parsed.fragment.startswith("p"):  # thread link with anchor, e.g. "viewtopic.php?t=1&start=20#p123"
+				postId = parsed.fragment[1:]
+			if postId.isdigit():
+				return "post", postId
+			threadId = query.get("t", [""])[0]
+			if threadId.isdigit():
+				start = query.get("start", ["0"])[0]
+				return "thread", self.createThreadUrl(threadId, int(start) if start.isdigit() else 0)
+		if path.endswith(fpglobals.IMAGEEXTENSIONS):
+			return "image", url
+		return "extern", url
+
+	def getThreadTitle(self, xml):
+		titleLine = xml.title.string if xml.title else ""  # "LCD4linux - Seite 150 - openATV Forum"
+		titleLine = sub(r"\s*-\s*openATV Forum\s*$", "", titleLine, flags=IGNORECASE) if titleLine else ""
+		foundpos = titleLine.rfind("Seite")
+		return titleLine[:foundpos - 3] if foundpos != -1 else titleLine
+
+	def parseContent(self, containers):  # replaces images and links by markers like '[Bild 1]' and '[Link 2]' and collects their targets
+		def addUnique(itemList, item, key=None):
+			for index, entry in enumerate(itemList):
+				if (entry[key] if key else entry) == (item[key] if key else item):
+					return index + 1
+			itemList.append(item)
+			return len(itemList)
+
+		texts, links, images = [], [], []
+		for container in containers:
+			for img in container.find_all("img"):
+				classes = img.get("class") or []
+				if "smilies" in classes:
+					img.replace_with(str(img.get("alt") or ""))
+				elif "postimage" in classes:
+					src, target = str(img.get("src") or ""), img
+					parent = img.parent
+					if isinstance(parent, Tag) and parent.name == "a":  # linked image: replace the whole link
+						target = parent
+						href = str(parent.get("href") or "")
+						if "download/file.php" in href:  # attachment: use the full size image instead of the thumbnail
+							src = href
+					if src:
+						target.replace_with(f"[Bild {addUnique(images, self.absoluteUrl(src))}]")
+			for link in container.find_all("a", href=True):
+				href = str(link.get("href") or "")
+				if not href or href.startswith(("#", "javascript")) or "memberlist.php" in href:
+					continue
+				url = self.absoluteUrl(href)
+				linkType, linkTarget = self.classifyLink(url)
+				if linkType == "extern":  # can't be opened on the receiver anyway
+					continue
+				linkText = link.get_text(" ", strip=True)
+				if linkType == "image":
+					marker = f"[Bild {addUnique(images, url)}]"
+				else:
+					text = linkText or str(link.get("aria-label") or "")
+					marker = f"[Link {addUnique(links, {'type': linkType, 'target': linkTarget, 'url': url, 'text': text}, key='url')}]"
+				if linkText:
+					link.insert_after(f" {marker}")
+				else:  # e.g. the arrow icon of a quote linking to the quoted post
+					link.replace_with(f"{marker} ")
+			texts.append(container.get_text())
+		return texts, links, images
+
 	def parseLatest(self, startPage=0):
-		def setPostKey(key, value, replacements=[]):
+		def setPostKey(key, value, replacements=()):
 			if value:
 				text = value if isinstance(value, str) else value.get_text()
 				if text:
@@ -72,7 +156,7 @@ class FparserHelper:
 		pageList, pageUser = [], []
 		try:
 			xml = BeautifulSoup(htmlData, features="lxml")  # .replace('&amp;', '&')  # work around BeautifulSoup bug
-		except Exception as errMsg:
+		except Exception as errMsg:  # noqa: BLE001 - any parser error must not stop the plugin
 			errText = f"[{MODULE_NAME}] ERROR in module 'parseLatest': {errMsg}"
 			print(errText)
 			return errText, {}
@@ -114,7 +198,7 @@ class FparserHelper:
 		return errMsg, {"threadTitle": threadTitle, "currPost": currPost, "threads": latestList, "users": list(set(latestUser))}  # remove duplicates from userlist
 
 	def parseThread(self, threadUrl=""):
-		def setThreadKey(key, value, replacements=[]):
+		def setThreadKey(key, value, replacements=()):
 			if value:
 				text = value if isinstance(value, str) else value.get_text()
 				if text:
@@ -135,16 +219,13 @@ class FparserHelper:
 		xml = None
 		try:
 			xml = BeautifulSoup(htmlData, features="lxml")  # .replace('&amp;', '&')  # work around BeautifulSoup bug
-		except Exception as errMsg:
+		except Exception as errMsg:  # noqa: BLE001 - any parser error must not stop the plugin
 			print(f"[{MODULE_NAME}] ERROR in module 'parseThread': {errMsg}")
 			return f"Failed to parse thread page: {errMsg}", {}
 		if xml is None:
 			print(f"[{MODULE_NAME}] ERROR in module 'parseThread': {errMsg}")
 			return f"Failed to parse thread page: {errMsg}", {}
-		titleLine = xml.title.string if xml.title else ""  # "LCD4linux - Seite 150"
-		titleLine = titleLine.replace(" - openATV Forum", "") if titleLine else ""
-		foundpos = titleLine.rfind("Seite")
-		threadTitle = titleLine[:foundpos - 3] if foundpos != -1 else titleLine
+		threadTitle = self.getThreadTitle(xml)
 		threadInput = xml.find("input", {"name": "t", "type": "hidden"})
 		threadId = threadInput.get("value") if isinstance(threadInput, Tag) else None
 		pagination = xml.find("div", {"class": "pagination"})  # <div class="pagination">   21 Beiträge   <ul>
@@ -202,7 +283,7 @@ class FparserHelper:
 		return errMsg
 
 	def parsePost(self, postId=""):
-		def setPostKey(key, value, replacements=[]):
+		def setPostKey(key, value, replacements=()):
 			if value:
 				text = value if isinstance(value, str) else value.get_text()
 				if text:
@@ -222,9 +303,10 @@ class FparserHelper:
 			return errMsg, {}
 		try:
 			xml = BeautifulSoup(htmlData, features="lxml")  # .replace('&amp;', '&')  # work around BeautifulSoup bug
-		except Exception as errMsg:
+		except Exception as errMsg:  # noqa: BLE001 - any parser error must not stop the plugin
 			print(f"[{MODULE_NAME}] ERROR in module 'parseThread': {errMsg}")
 			return str(errMsg), {}
+		threadTitle = self.getThreadTitle(xml)
 		for post in xml.find_all("div", class_=compile("post has-profile .*?")):
 			if not isinstance(post, Tag):
 				continue
@@ -233,6 +315,7 @@ class FparserHelper:
 				continue
 			postDict = {}
 			setPostKey("postId", pId)
+			setPostKey("threadTitle", threadTitle)
 			postProfile = post.find("dl", {"class": "postprofile"})
 			if isinstance(postProfile, Tag):
 				userName = postProfile.find("a", {"class": compile("username(.*?)")})
@@ -275,10 +358,18 @@ class FparserHelper:
 					setPostKey("postTime", timeEl.get_text())
 				contentEl = postBody.find("div", {"class": "content"})
 				if isinstance(contentEl, Tag):
-					fullContent = contentEl.get_text()
+					attachBoxes = [box for box in postBody.find_all("dl", {"class": "attachbox"}) if isinstance(box, Tag) and not box.find_parent("div", {"class": "content"})]
+					texts, links, images = self.parseContent([contentEl] + attachBoxes)
+					fullContent = texts[0]
+					for attachText in texts[1:]:  # e.g. "Dateianhänge [Bild 3] [Bild 4]"
+						fullContent += f"\n\n{' '.join(attachText.split())}"
 					while "\n\n\n" in fullContent:
 						fullContent = fullContent.replace("\n\n\n", "\n\n")
 					setPostKey("fullContent", fullContent)
+					if links:
+						postDict["links"] = links
+					if images:
+						postDict["images"] = images
 				changeLine = postBody.find("div", {"class": "notice"})
 				if isinstance(changeLine, Tag):
 					setPostKey("changeLine", changeLine.get_text().strip())
