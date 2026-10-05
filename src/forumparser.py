@@ -30,6 +30,8 @@ class FParserGlobals:
 	BASEURL: str = "https://www.opena.tv"
 	FORUMHOSTS: tuple = ("opena.tv", "www.opena.tv", "reader.opena.tv")
 	IMAGEEXTENSIONS: tuple = (".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp")
+	CODEHEAD: str = "\x1d"  # line prefixes in 'fullContent' for the header and the lines of a code block
+	CODELINE: str = "\x1e"
 	VIDEOEXTENSIONS: tuple = (".mp4", ".m4v", ".mkv", ".webm", ".mov", ".avi", ".mpg", ".mpeg", ".ts", ".m3u8")
 
 
@@ -107,6 +109,11 @@ class FparserHelper:
 
 		texts, links, images, videos = [], [], [], []
 		for container in containers:
+			for codebox in container.find_all("div", class_="codebox"):  # <div class="codebox"><p>Code: <a>Alles auswählen</a></p><pre><code>...</code></pre></div>
+				codeEl = codebox.find("code")
+				lines = (codeEl if isinstance(codeEl, Tag) else codebox).get_text().rstrip("\n").split("\n")
+				codeLines = "\n".join(f"{fpglobals.CODELINE}{line}" for line in lines)
+				codebox.replace_with(f"\n{fpglobals.CODEHEAD}Code:\n{codeLines}\n")
 			for video in container.find_all("video"):  # e.g. <video class="auto-video" src="https://.../clip.mp4">
 				source = video.find("source", src=True)
 				src = str(video.get("src") or (source.get("src") if isinstance(source, Tag) else "") or "")
@@ -281,6 +288,8 @@ class FparserHelper:
 					setThreadKey("postTime", timeEl.get_text())
 				contentEl = postBody.find("div", {"class": "content"})
 				if isinstance(contentEl, Tag):
+					for selectLink in contentEl.select("div.codebox p a"):  # remove 'Alles auswählen' of code blocks
+						selectLink.decompose()
 					setThreadKey("shortContent", contentEl.get_text(separator=" ", strip=True)[:300])  # limit content as preview
 			threadList.append(threadDict)
 		return errMsg, {

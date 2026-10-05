@@ -44,7 +44,7 @@ from Tools.LoadPixmap import LoadPixmap
 from twisted.internet.reactor import callFromThread, callInThread
 
 from . import __version__
-from .forumparser import fparser
+from .forumparser import fparser, fpglobals
 
 PLUGIN_NAME = "OpenATV Reader"
 PLUGIN_DESCRIPTION = "Das opena.tv Forum bequem auf dem TV mitlesen"
@@ -459,6 +459,10 @@ class openATVPost(ATVhelper):
 		<widget name="scrollbar" position="1196,186" size="2,433" backgroundColor="#00505050" zPosition="1" />
 		<widget name="scrollthumb" position="1194,186" size="6,40" backgroundColor="#00b3b3b3" zPosition="2" />
 		<widget name="picframe" position="26,186" size="10,10" backgroundColor="#00ffcc00" zPosition="0" />
+		<widget name="codebg0" position="26,186" size="10,10" backgroundColor="#00283038" zPosition="0" />
+		<widget name="codebg1" position="26,186" size="10,10" backgroundColor="#00283038" zPosition="0" />
+		<widget name="codebg2" position="26,186" size="10,10" backgroundColor="#00283038" zPosition="0" />
+		<widget name="codebg3" position="26,186" size="10,10" backgroundColor="#00283038" zPosition="0" />
 """
 	# pool of widgets for the visible text blocks and images, positioned at runtime
 	skin += "".join(f'<widget name="text{no}" position="26,186" size="1160,30" font="Regular;24" halign="left" foregroundColor="white" transparent="1" zPosition="1" />\n' for no in range(12))
@@ -481,6 +485,10 @@ class openATVPost(ATVhelper):
 	COLORLINK = "\\c0092cbdf"  # eLabel color codes
 	COLORSELECTED = "\\c00ffcc00"
 	COLORRESET = "\\C"
+	COLORCODE = "\\c00b8e0b8"
+	COLORCODEHEAD = "\\c00909090"
+	CODEWIDGETS = 4  # backgrounds of the visible code blocks
+	CODEINDENT = "\u00a0" * 3
 
 	def __init__(self, session, threadTitle, postId, favMenu, threadLinks):
 		if self.RESOLUTION == "fHD":
@@ -518,7 +526,7 @@ class openATVPost(ATVhelper):
 			self[f"pic{widgetNo}"].hide()
 			self[f"vidlabel{widgetNo}"] = Label()
 			self[f"vidlabel{widgetNo}"].hide()
-		for widget in ["scrollbar", "scrollthumb", "picframe"]:
+		for widget in ["scrollbar", "scrollthumb", "picframe"] + [f"codebg{widgetNo}" for widgetNo in range(self.CODEWIDGETS)]:
 			self[widget] = Label()
 			self[widget].hide()
 		self["key_red"] = StaticText("Favorit hinzufügen")
@@ -670,7 +678,22 @@ class openATVPost(ATVhelper):
 			line = word
 		return lines + [line]
 
-	def buildRows(self):  # convert the content into rows of text lines and images for scrolling
+	def wrapCode(self, line):  # split a code line into the lines the label would show, keeping all spaces
+		line = f"{self.CODEINDENT}{line.replace(chr(9), '    ')}"
+		lines = []
+		while not self.isSingleLine(line):
+			low, high = 1, len(line)
+			while low < high:  # find the longest fitting prefix
+				middle = (low + high + 1) // 2
+				if self.isSingleLine(line[:middle]):
+					low = middle
+				else:
+					high = middle - 1
+			lines.append(line[:low])
+			line = f"{self.CODEINDENT}{line[low:]}"
+		return lines + [line]
+
+	def buildRows(self):  # convert the content into rows of text lines, code lines and images for scrolling
 		areaSize = self["textarea"].instance.size()
 		areaWidth, areaHeight = areaSize.width(), areaSize.height()
 		self.lineHeight = self.measureText("X\nX") - self.measureText("X")  # distance between two lines of the label
@@ -678,10 +701,17 @@ class openATVPost(ATVhelper):
 		text = ""
 
 		def addText(text):
+			text = sub(r"\\(?=[ntrcC])", lambda match: "\\\u200b", text)  # a zero width space keeps eLabel from interpreting e.g. '\\n' of the text
 			text = sub(r"\[(Link|Bild|Video) (\d+)\]", "[\\1\u00a0\\2]", text)
 			for paragraph in text.strip("\n").split("\n"):
-				for line in self.wrapParagraph(paragraph):
-					self.rows.append(("text", line, self.lineHeight))
+				if paragraph.startswith(fpglobals.CODEHEAD):
+					self.rows.append(("codehead", paragraph[1:], self.lineHeight))
+				elif paragraph.startswith(fpglobals.CODELINE):
+					for line in self.wrapCode(paragraph[1:]):
+						self.rows.append(("code", line, self.lineHeight))
+				else:
+					for line in self.wrapParagraph(paragraph):
+						self.rows.append(("text", line, self.lineHeight))
 
 		parts = split(r"\[(Bild|Video) (\d+)\]", self.content)  # [text, kind, number, text, kind, number, ...]
 		text = parts[0]
@@ -703,7 +733,7 @@ class openATVPost(ATVhelper):
 		for rowNo, (rowType, data, height) in enumerate(self.rows):
 			if rowType == "pic":
 				self.targets.append((rowNo, data[0], data[1], 0))
-			else:
+			elif rowType == "text":
 				for occurrence, match in enumerate(self.MARKER.finditer(data)):
 					targetType = {"Bild": "image", "Video": "video"}.get(match.group(1), "link")
 					self.targets.append((rowNo, targetType, int(match.group(2)) - 1, occurrence))
@@ -723,6 +753,13 @@ class openATVPost(ATVhelper):
 			return f"{self.COLORSELECTED if isSelected else self.COLORLINK}{match.group(0)}{self.COLORRESET}"
 
 		return self.MARKER.sub(color, text)
+
+	def formatRow(self, rowNo, rowType, text):
+		if rowType == "code":
+			return f"{self.COLORCODE}{text}{self.COLORRESET}"
+		if rowType == "codehead":
+			return f"{self.COLORCODEHEAD}{text}{self.COLORRESET}"
+		return self.colorizeLine(rowNo, text)
 
 	def visibleRows(self, topRow):  # number of rows which fit completely into the text area, starting at 'topRow'
 		areaHeight = self["textarea"].instance.size().height()
@@ -756,14 +793,26 @@ class openATVPost(ATVhelper):
 			self[f"pic{widgetNo}"].hide()
 			self[f"vidlabel{widgetNo}"].hide()
 		self["picframe"].hide()
-		textNo, picNo, posY, lines = 0, 0, 0, []
+		for widgetNo in range(self.CODEWIDGETS):
+			self[f"codebg{widgetNo}"].hide()
+		textNo, picNo, codeNo, posY, lines, codeStart = 0, 0, 0, 0, [], -1
+
+		def flushCode():  # background of a code block (or of its visible part)
+			nonlocal codeNo, codeStart
+			if codeStart != -1 and codeNo < self.CODEWIDGETS:
+				widget = self[f"codebg{codeNo}"]
+				codeNo += 1
+				widget.instance.resize(eSize(areaSize.width() + self.BLOCKGAP, posY - codeStart + self.BLOCKGAP // 2))
+				widget.instance.move(ePoint(areaPos.x() - self.BLOCKGAP // 2, areaPos.y() + codeStart))
+				widget.show()
+			codeStart = -1
 
 		def flushText():  # consecutive text lines share one label
 			nonlocal textNo, lines
 			if lines and textNo < self.TEXTWIDGETS:
 				widget = self[f"text{textNo}"]
 				textNo += 1
-				widget.setText("\n".join(self.colorizeLine(rowNo, line) for rowNo, line in lines))
+				widget.setText("\n".join(self.formatRow(rowNo, rowType, line) for rowNo, rowType, line in lines))
 				widget.instance.resize(eSize(areaSize.width(), (len(lines) + 1) * self.lineHeight))
 				widget.instance.move(ePoint(areaPos.x(), areaPos.y() + posY - len(lines) * self.lineHeight))
 				widget.show()
@@ -771,8 +820,14 @@ class openATVPost(ATVhelper):
 
 		for rowNo in range(self.topRow, self.topRow + self.visibleRows(self.topRow)):
 			rowType, data, height = self.rows[rowNo]
-			if rowType == "text":
-				lines.append((rowNo, data))
+			if rowType in ("code", "codehead"):
+				if codeStart == -1 or rowType == "codehead":
+					flushCode()
+					codeStart = posY
+			elif codeStart != -1:
+				flushCode()
+			if rowType != "pic":
+				lines.append((rowNo, rowType, data))
 			else:
 				flushText()
 				mediaType, mediaIndex, width, picHeight = data
@@ -797,6 +852,7 @@ class openATVPost(ATVhelper):
 						self["picframe"].show()
 			posY += height
 		flushText()
+		flushCode()
 		self.updateScrollbar()
 
 	def updateScrollbar(self):
