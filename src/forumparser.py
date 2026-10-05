@@ -30,6 +30,7 @@ class FParserGlobals:
 	BASEURL: str = "https://www.opena.tv"
 	FORUMHOSTS: tuple = ("opena.tv", "www.opena.tv", "reader.opena.tv")
 	IMAGEEXTENSIONS: tuple = (".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp")
+	VIDEOEXTENSIONS: tuple = (".mp4", ".m4v", ".mkv", ".webm", ".mov", ".avi", ".mpg", ".mpeg", ".ts", ".m3u8")
 
 
 fpglobals = FParserGlobals()
@@ -70,7 +71,7 @@ class FparserHelper:
 		query = [(key, value) for key, value in parse_qsl(parsed.query, keep_blank_values=True) if key != "sid"]
 		return urlunparse(parsed._replace(query=urlencode(query)))
 
-	def classifyLink(self, url):  # returns (type, target): ("post", postId), ("thread", threadUrl), ("image", url) or ("extern", url)
+	def classifyLink(self, url):  # returns (type, target): ("post", postId), ("thread", threadUrl), ("image", url), ("video", url) or ("extern", url)
 		parsed = urlparse(url)
 		query = parse_qs(parsed.query)
 		path = parsed.path.lower()
@@ -86,6 +87,8 @@ class FparserHelper:
 				return "thread", self.createThreadUrl(threadId, int(start) if start.isdigit() else 0)
 		if path.endswith(fpglobals.IMAGEEXTENSIONS):
 			return "image", url
+		if path.endswith(fpglobals.VIDEOEXTENSIONS):
+			return "video", url
 		return "extern", url
 
 	def getThreadTitle(self, xml):
@@ -94,7 +97,7 @@ class FparserHelper:
 		foundpos = titleLine.rfind("Seite")
 		return titleLine[:foundpos - 3] if foundpos != -1 else titleLine
 
-	def parseContent(self, containers):  # replaces images and links by markers like '[Bild 1]' and '[Link 2]' and collects their targets
+	def parseContent(self, containers):  # replaces images, videos and links by markers like '[Bild 1]', '[Video 1]' and '[Link 2]' and collects their targets
 		def addUnique(itemList, item, key=None):
 			for index, entry in enumerate(itemList):
 				if (entry[key] if key else entry) == (item[key] if key else item):
@@ -102,8 +105,13 @@ class FparserHelper:
 			itemList.append(item)
 			return len(itemList)
 
-		texts, links, images = [], [], []
+		texts, links, images, videos = [], [], [], []
 		for container in containers:
+			for video in container.find_all("video"):  # e.g. <video class="auto-video" src="https://.../clip.mp4">
+				source = video.find("source", src=True)
+				src = str(video.get("src") or (source.get("src") if isinstance(source, Tag) else "") or "")
+				if src:
+					video.replace_with(f"[Video {addUnique(videos, self.absoluteUrl(src))}]")
 			for img in container.find_all("img"):
 				classes = img.get("class") or []
 				if "smilies" in classes:
@@ -124,11 +132,15 @@ class FparserHelper:
 					continue
 				url = self.absoluteUrl(href)
 				linkType, linkTarget = self.classifyLink(url)
+				linkText = link.get_text(" ", strip=True)
+				if linkType == "extern" and "download/file.php" in url and linkText.lower().endswith(fpglobals.VIDEOEXTENSIONS):
+					linkType = "video"  # video attachment, the file name is only part of the link text
 				if linkType == "extern":  # can't be opened on the receiver anyway
 					continue
-				linkText = link.get_text(" ", strip=True)
 				if linkType == "image":
 					marker = f"[Bild {addUnique(images, url)}]"
+				elif linkType == "video":
+					marker = f"[Video {addUnique(videos, url)}]"
 				else:
 					text = linkText or str(link.get("aria-label") or "")
 					marker = f"[Link {addUnique(links, {'type': linkType, 'target': linkTarget, 'url': url, 'text': text}, key='url')}]"
@@ -137,7 +149,7 @@ class FparserHelper:
 				else:  # e.g. the arrow icon of a quote linking to the quoted post
 					link.replace_with(f"{marker} ")
 			texts.append(container.get_text())
-		return texts, links, images
+		return texts, links, images, videos
 
 	def parseLatest(self, startPage=0):
 		def setPostKey(key, value, replacements=()):
@@ -359,7 +371,7 @@ class FparserHelper:
 				contentEl = postBody.find("div", {"class": "content"})
 				if isinstance(contentEl, Tag):
 					attachBoxes = [box for box in postBody.find_all("dl", {"class": "attachbox"}) if isinstance(box, Tag) and not box.find_parent("div", {"class": "content"})]
-					texts, links, images = self.parseContent([contentEl] + attachBoxes)
+					texts, links, images, videos = self.parseContent([contentEl] + attachBoxes)
 					fullContent = texts[0]
 					for attachText in texts[1:]:  # e.g. "Dateianhänge [Bild 3] [Bild 4]"
 						fullContent += f"\n\n{' '.join(attachText.split())}"
@@ -370,6 +382,8 @@ class FparserHelper:
 						postDict["links"] = links
 					if images:
 						postDict["images"] = images
+					if videos:
+						postDict["videos"] = videos
 				changeLine = postBody.find("div", {"class": "notice"})
 				if isinstance(changeLine, Tag):
 					setPostKey("changeLine", changeLine.get_text().strip())

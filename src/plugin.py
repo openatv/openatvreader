@@ -11,13 +11,14 @@ from hashlib import md5
 from os import linesep, makedirs, rename
 from os.path import exists, join
 from re import compile, split, sub
-from shutil import copy2, rmtree
+from shutil import copy2, rmtree, which
 from struct import unpack
 from threading import Lock
 from urllib.parse import parse_qs, urlparse
 
 from Components.ActionMap import ActionMap, NumberActionMap
 from Components.ConditionalWidget import BlinkingWidget
+from Components.Console import Console
 from Components.Label import Label
 from Components.Pixmap import Pixmap
 from Components.Sources.List import List
@@ -28,11 +29,13 @@ from enigma import (
 	detectImageType,
 	ePicLoad,
 	ePoint,
+	eServiceReference,
 	eSize,
 	eTimer,
 	getDesktop,
 )
 from Plugins.Plugin import PluginDescriptor
+from Screens.InfoBar import MoviePlayer
 from Screens.MessageBox import MessageBox
 from Screens.Screen import Screen
 from Tools.BoundFunction import boundFunction
@@ -108,6 +111,37 @@ class ATVhelper(Screen, ATVglobals):
 		picsList = [pic for pic in picsList if not pic.endswith(".tmp")]
 		return picsList[0] if picsList else ""
 
+	def findVideoThumb(self, url):
+		filePath = join(self.IMAGEPATH, f"{md5(url.encode()).hexdigest()}_video.jpg")
+		return filePath if exists(filePath) else ""
+
+	def createVideoThumb(self, url, callback, seek="3"):  # grabs a frame of the video with ffmpeg (fetches only the needed parts), calls callback(errMsg, filePath)
+		ffmpeg = which("ffmpeg")
+		if not ffmpeg:
+			callback("ffmpeg ist nicht installiert", "")
+			return
+		filePath = join(self.IMAGEPATH, f"{md5(url.encode()).hexdigest()}_video.jpg")
+		try:
+			makedirs(self.IMAGEPATH, exist_ok=True)
+		except OSError as error:
+			callback(str(error), "")
+			return
+		if not hasattr(self, "thumbConsole"):
+			self.thumbConsole = Console()
+		cmd = [ffmpeg, ffmpeg, "-nostdin", "-loglevel", "error", "-y", "-rw_timeout", "20000000", "-ss", seek, "-i", url, "-frames:v", "1", "-vf", "scale=640:-2", "-q:v", "3", filePath]
+		self.thumbConsole.ePopen(cmd, self.videoThumbFinished, (url, callback, seek, filePath))
+
+	def videoThumbFinished(self, data, retVal, extraArgs):
+		url, callback, seek, filePath = extraArgs
+		if getattr(self, "closed", False):  # screen was closed meanwhile (ffmpeg got killed)
+			return
+		if retVal == 0 and exists(filePath):
+			callback("", filePath)
+		elif seek != "0":  # e.g. a video shorter than 3 seconds: take the first frame
+			self.createVideoThumb(url, callback, "0")
+		else:
+			callback(data.strip() or f"ffmpeg returncode {retVal}", "")
+
 	def downloadPostImage(self, url):  # returns (errMsg, filePath)
 		errMsg, binaryData = "", b""
 		for _ in range(2):  # external image hosts are sometimes slow, so try twice with a longer timeout
@@ -173,6 +207,14 @@ class ATVhelper(Screen, ATVglobals):
 		picLoad = ePicLoad()
 		picLoad.setPara((width, height, 1, 1, False, 1, "#00000000"))
 		return picLoad.getData() if picLoad.startDecode(filePath, 0, 0, False) == 0 else None
+
+	def playVideo(self, url, videotitle, description):
+		sref = eServiceReference(4097, 0, url)
+		sref.setName(f"{videotitle} - {description}" if len(f"{videotitle} - {description}") < 30 else videotitle)
+		try:
+			self.session.open(MoviePlayer, sref, fromMovieSelection=False)
+		except TypeError:  # in case the image doesn't support 'fromMovieSelection'
+			self.session.open(MoviePlayer, sref)
 
 	def showPic(self, widget, filePath, show=True, scale=True):
 		if scale:
@@ -421,6 +463,7 @@ class openATVPost(ATVhelper):
 	# pool of widgets for the visible text blocks and images, positioned at runtime
 	skin += "".join(f'<widget name="text{no}" position="26,186" size="1160,30" font="Regular;24" halign="left" foregroundColor="white" transparent="1" zPosition="1" />\n' for no in range(12))
 	skin += "".join(f'<widget name="pic{no}" position="26,186" size="10,10" alphatest="blend" transparent="1" zPosition="1" />\n' for no in range(6))
+	skin += "".join(f'<widget name="vidlabel{no}" position="26,186" size="170,34" font="Regular;20" halign="center" valign="center" foregroundColor="white" backgroundColor="#00000000" zPosition="2" />\n' for no in range(6))
 	skin += """		<ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_red_HD.png" position="14,636" size="26,38" alphatest="blend" />
 		<widget name="button_green" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_green_HD.png" position="224,636" size="26,38" alphatest="blend" />
 		<ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_yellow_HD.png" position="434,636" size="26,38" alphatest="blend" />
@@ -434,7 +477,7 @@ class openATVPost(ATVhelper):
 	TEXTWIDGETS = 12  # size of the widget pools in the skin
 	PICWIDGETS = 6
 	BLOCKGAP = 8  # vertical space around images
-	MARKER = compile(r"\[(Link|Bild)\u00a0(\d+)\]")  # markers in the text, joined by a no-break space so they never get wrapped
+	MARKER = compile(r"\[(Link|Bild|Video)\u00a0(\d+)\]")  # markers in the text, joined by a no-break space so they never get wrapped
 	COLORLINK = "\\c0092cbdf"  # eLabel color codes
 	COLORSELECTED = "\\c00ffcc00"
 	COLORRESET = "\\C"
@@ -451,11 +494,11 @@ class openATVPost(ATVhelper):
 		self.avatarDLlist = []  # is required, don't remove
 		self.postNo = ""
 		self.userName = ""
-		self.links, self.images = [], []
+		self.links, self.images, self.videos = [], [], []
 		self.content = ""
-		self.imageFiles, self.pixmapCache = {}, {}  # downloaded images {imageIndex: filePath}, decoded pixmaps {(imageIndex, width, height): pixmap}
+		self.imageFiles, self.videoThumbs, self.pixmapCache = {}, {}, {}  # {index: filePath} of images & video thumbnails, decoded pixmaps {(mediaType, index, width, height): pixmap}
 		self.rows, self.topRow, self.lineHeight = [], 0, 0  # layout rows: ("text", line, height) or ("pic", (imageIndex, width, height), height)
-		self.targets, self.selected = [], None  # images & links which can be opened with OK: (rowNo, "image"|"link", index, occurrence in row)
+		self.targets, self.selected = [], None  # images, videos & links which can be opened with OK: (rowNo, "image"|"video"|"link", index, occurrence in row)
 		self.closed = False
 		self["waiting"] = BlinkingLabel("bitte warten...")
 		self["waiting"].startBlinking()
@@ -473,6 +516,8 @@ class openATVPost(ATVhelper):
 		for widgetNo in range(self.PICWIDGETS):
 			self[f"pic{widgetNo}"] = Pixmap()
 			self[f"pic{widgetNo}"].hide()
+			self[f"vidlabel{widgetNo}"] = Label()
+			self[f"vidlabel{widgetNo}"].hide()
 		for widget in ["scrollbar", "scrollthumb", "picframe"]:
 			self[widget] = Label()
 			self[widget].hide()
@@ -501,6 +546,8 @@ class openATVPost(ATVhelper):
 
 	def setClosed(self):
 		self.closed = True  # running download threads must not touch the widgets anymore
+		if hasattr(self, "thumbConsole"):
+			self.thumbConsole.killAll()
 
 	def makePost(self):
 		errMsg, postDict = fparser.parsePost(self.postId)
@@ -519,9 +566,9 @@ class openATVPost(ATVhelper):
 			self.postNo = postDict.get("postNumber", "")
 			self.userName = postDict.get("userName", "")
 			self.threadTitle = postDict.get("threadTitle", "") or self.threadTitle  # linked posts could be part of another thread
-			self.links, self.images = postDict.get("links", []), postDict.get("images", [])
-			if self.images:
-				self["key_green"].setText(f"Bilder ({len(self.images)})")
+			self.links, self.images, self.videos = postDict.get("links", []), postDict.get("images", []), postDict.get("videos", [])
+			if self.images or self.videos:
+				self["key_green"].setText("Medien anzeigen")
 				self["button_green"].show()
 			_, filePath = self.handleAvatar(self["avatar"], postDict.get("avatarUrl", ""), self.handleAvatarShow)
 			self.showPic(self["avatar"], f"{filePath if filePath and exists(filePath) else join(self.AVATARPATH, "unknown.png")}")
@@ -545,6 +592,8 @@ class openATVPost(ATVhelper):
 			self.showRows(0)
 			if self.images:
 				callInThread(self.loadImages)
+			if self.videos:
+				self.loadVideoThumbs()
 		self.ready = True
 
 	def loadImages(self):
@@ -557,12 +606,30 @@ class openATVPost(ATVhelper):
 				if errMsg:
 					print(f"[{self.MODULE_NAME}] ERROR in module 'loadImages': {url}: {errMsg}!")
 			if filePath:
-				callFromThread(self.imageLoaded, index, filePath)
+				callFromThread(self.mediaLoaded, "image", index, filePath)
 
-	def imageLoaded(self, index, filePath):
+	def loadVideoThumbs(self, index=0):  # one ffmpeg after the other, runs asynchronously in the main loop
+		while index < len(self.videos) and not self.closed:
+			filePath = self.findVideoThumb(self.videos[index])
+			if not filePath:
+				self.createVideoThumb(self.videos[index], boundFunction(self.videoThumbCreated, index))
+				return
+			self.mediaLoaded("video", index, filePath)
+			index += 1
+
+	def videoThumbCreated(self, index, errMsg, filePath):
 		if self.closed:
 			return
-		self.imageFiles[index] = filePath
+		if errMsg:
+			print(f"[{self.MODULE_NAME}] ERROR in module 'loadVideoThumbs': {self.videos[index]}: {errMsg}!")
+		if filePath:
+			self.mediaLoaded("video", index, filePath)
+		self.loadVideoThumbs(index + 1)
+
+	def mediaLoaded(self, mediaType, index, filePath):
+		if self.closed:
+			return
+		(self.imageFiles if mediaType == "image" else self.videoThumbs)[index] = filePath
 		topRowData = self.rows[self.topRow][1] if self.rows else None  # keep the position: look for the current top line again
 		topRow = self.topRow
 		selectedTarget = self.targets[self.selected][1:3] if self.selected is not None else None
@@ -611,33 +678,35 @@ class openATVPost(ATVhelper):
 		text = ""
 
 		def addText(text):
-			text = sub(r"\[(Link|Bild) (\d+)\]", "[\\1\u00a0\\2]", text)
+			text = sub(r"\[(Link|Bild|Video) (\d+)\]", "[\\1\u00a0\\2]", text)
 			for paragraph in text.strip("\n").split("\n"):
 				for line in self.wrapParagraph(paragraph):
 					self.rows.append(("text", line, self.lineHeight))
 
-		for partNo, part in enumerate(split(r"\[Bild (\d+)\]", self.content)):
-			if partNo % 2:  # loaded images become their own row, otherwise the marker '[Bild n]' remains in the text
-				imageIndex = int(part) - 1
-				width, height = self.getImageSize(self.imageFiles.get(imageIndex, ""))
-				if width and height:
-					addText(text)
-					text = ""
-					scale = min(1.0, areaWidth / width, (areaHeight - self.BLOCKGAP) / height)
-					width, height = max(1, int(width * scale)), max(1, int(height * scale))
-					self.rows.append(("pic", (imageIndex, width, height), height + self.BLOCKGAP))
-				else:
-					text += f"[Bild {part}]"
+		parts = split(r"\[(Bild|Video) (\d+)\]", self.content)  # [text, kind, number, text, kind, number, ...]
+		text = parts[0]
+		for partNo in range(1, len(parts), 3):  # loaded images & video thumbnails become their own row, otherwise the marker remains in the text
+			kind, number = parts[partNo], parts[partNo + 1]
+			mediaType, index = "image" if kind == "Bild" else "video", int(number) - 1
+			width, height = self.getImageSize((self.imageFiles if mediaType == "image" else self.videoThumbs).get(index, ""))
+			if width and height:
+				addText(text)
+				text = ""
+				scale = min(1.0, areaWidth / width, (areaHeight - self.BLOCKGAP) / height)
+				width, height = max(1, int(width * scale)), max(1, int(height * scale))
+				self.rows.append(("pic", (mediaType, index, width, height), height + self.BLOCKGAP))
 			else:
-				text += part
+				text += f"[{kind} {number}]"
+			text += parts[partNo + 2]
 		addText(text)
 		self.targets = []
 		for rowNo, (rowType, data, height) in enumerate(self.rows):
 			if rowType == "pic":
-				self.targets.append((rowNo, "image", data[0], 0))
+				self.targets.append((rowNo, data[0], data[1], 0))
 			else:
 				for occurrence, match in enumerate(self.MARKER.finditer(data)):
-					self.targets.append((rowNo, "image" if match.group(1) == "Bild" else "link", int(match.group(2)) - 1, occurrence))
+					targetType = {"Bild": "image", "Video": "video"}.get(match.group(1), "link")
+					self.targets.append((rowNo, targetType, int(match.group(2)) - 1, occurrence))
 
 	def visibleTargets(self):
 		lastRow = self.topRow + self.visibleRows(self.topRow)
@@ -685,6 +754,7 @@ class openATVPost(ATVhelper):
 			self[f"text{widgetNo}"].hide()
 		for widgetNo in range(self.PICWIDGETS):
 			self[f"pic{widgetNo}"].hide()
+			self[f"vidlabel{widgetNo}"].hide()
 		self["picframe"].hide()
 		textNo, picNo, posY, lines = 0, 0, 0, []
 
@@ -705,15 +775,21 @@ class openATVPost(ATVhelper):
 				lines.append((rowNo, data))
 			else:
 				flushText()
-				imageIndex, width, picHeight = data
-				pixmap = self.getScaledPixmap(imageIndex, width, picHeight)
+				mediaType, mediaIndex, width, picHeight = data
+				pixmap = self.getScaledPixmap(mediaType, mediaIndex, width, picHeight)
 				if pixmap and picNo < self.PICWIDGETS:
 					widget = self[f"pic{picNo}"]
-					picNo += 1
 					widget.instance.resize(eSize(width, picHeight))
 					widget.instance.move(ePoint(areaPos.x(), areaPos.y() + posY + self.BLOCKGAP // 2))
 					widget.instance.setPixmap(pixmap)
 					widget.show()
+					if mediaType == "video":  # label on the thumbnail
+						label = self[f"vidlabel{picNo}"]
+						label.setText(f"\u25b6 Video {mediaIndex + 1}")
+						labelHeight = label.instance.size().height()
+						label.instance.move(ePoint(areaPos.x() + self.BLOCKGAP, areaPos.y() + posY + self.BLOCKGAP // 2 + picHeight - labelHeight - self.BLOCKGAP))
+						label.show()
+					picNo += 1
 					if rowNo == selectedRow:
 						frame = self.BLOCKGAP // 2
 						self["picframe"].instance.resize(eSize(width + 2 * frame, picHeight + 2 * frame))
@@ -740,10 +816,11 @@ class openATVPost(ATVhelper):
 		self["scrollbar"].show()
 		self["scrollthumb"].show()
 
-	def getScaledPixmap(self, imageIndex, width, height):
-		key = (imageIndex, width, height)
+	def getScaledPixmap(self, mediaType, index, width, height):
+		key = (mediaType, index, width, height)
 		if key not in self.pixmapCache:
-			self.pixmapCache[key] = self.loadScaledPixmap(self.imageFiles.get(imageIndex, ""), width, height)
+			filePath = (self.imageFiles if mediaType == "image" else self.videoThumbs).get(index, "")
+			self.pixmapCache[key] = self.loadScaledPixmap(filePath, width, height)
 		return self.pixmapCache[key]
 
 	def handleAvatarShow(self, widget, url, filePath):
@@ -789,10 +866,24 @@ class openATVPost(ATVhelper):
 			newFname = f"{fileParts[0]}.{extension}"
 			rename(filePath, newFname)  # rename with correct extension
 
-	def keyGreen(self):  # image gallery: starts with the selected image, otherwise with the first one
-		if self.ready and self.images:
-			selected = self.targets[self.selected] if self.selected is not None else None
-			self.session.open(openATVImage, self.images, selected[2] if selected and selected[1] == "image" else 0)
+	def getMedia(self):  # images and videos in the order of the post: [("image"|"video", url), ...]
+		order = []
+		for _, targetType, index, _ in self.targets:
+			if targetType in ("image", "video") and (targetType, index) not in order:
+				order.append((targetType, index))
+		order += [("image", index) for index in range(len(self.images)) if ("image", index) not in order]
+		order += [("video", index) for index in range(len(self.videos)) if ("video", index) not in order]
+		return order, [(targetType, self.images[index] if targetType == "image" else self.videos[index]) for targetType, index in order]
+
+	def openMedia(self, targetType="", index=-1):  # media viewer, starts with the given image/video, otherwise with the first one
+		order, media = self.getMedia()
+		if media:
+			self.session.open(openATVImage, media, order.index((targetType, index)) if (targetType, index) in order else 0, self.threadTitle)
+
+	def keyGreen(self):
+		if self.ready:
+			selected = self.targets[self.selected] if self.selected is not None else ("", "", -1)
+			self.openMedia(selected[1], selected[2])
 
 	def keyOk(self):
 		if self.ready and self.selected is not None:
@@ -800,7 +891,10 @@ class openATVPost(ATVhelper):
 
 	def openTarget(self, targetType, index):
 		if targetType == "image":
-			self.session.open(openATVImage, self.images, index)
+			self.openMedia(targetType, index)
+			return
+		if targetType == "video":
+			self.playVideo(self.videos[index], self.threadTitle, f"Video {index + 1}")
 			return
 		link = self.links[index]
 		if link["type"] == "post":
@@ -882,26 +976,26 @@ class openATVImage(ATVhelper):
 		<widget name="picture" position="13,72" size="1200,552" alphatest="blend" transparent="1" zPosition="1" />
 		<widget source="picinfo" render="Label" position="13,300" size="1200,90" font="Regular;22" halign="center" valign="center" foregroundColor="grey" backgroundColor="#1A0F0F0F" transparent="1" zPosition="2" />
 		<ePixmap position="13,630" size="1200,1" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/line_HD.png" zPosition="1" />
-		<widget source="url" render="Label" position="13,636" size="900,38" font="Regular;16" halign="left" valign="center" wrap="ellipsis" foregroundColor="grey" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1" />
 		<widget source="key_page" render="Label" position="913,636" size="300,38" font="Regular;18" halign="right" valign="center" foregroundColor="grey" backgroundColor="#1A0F0F0F" transparent="1" zPosition="1" />
 	</screen>"""
 
-	def __init__(self, session, images, index=0):
+	def __init__(self, session, media, index=0, title=""):  # media: [("image"|"video", url), ...]
 		if self.RESOLUTION == "fHD":
 			self.skin = self.skin.replace("_HD.png", "_fHD.png")
 		Screen.__init__(self, session, self.skin)
-		self.images = images
+		self.media = media
 		self.index = index
+		self.mediaTitle = title
 		self["waiting"] = BlinkingLabel("bitte warten...")
 		self["version"] = StaticText(self.VERSION)
-		for widget in ["headline", "picinfo", "url"]:
+		for widget in ["headline", "picinfo"]:
 			self[widget] = StaticText()
-		self["key_page"] = StaticText("links/rechts: Bild zurück/vor" if len(images) > 1 else "")
+		self["key_page"] = StaticText("links/rechts: zurück/vor" if len(media) > 1 else "")
 		self["picture"] = Pixmap()
 		self.area = None
 		self.closed = False
 		self["actions"] = ActionMap(["OkCancelActions", "DirectionActions"], {
-			"ok": self.close,
+			"ok": self.keyOk,
 			"cancel": self.close,
 			"left": self.prevImage,
 			"up": self.prevImage,
@@ -914,12 +1008,26 @@ class openATVImage(ATVhelper):
 	def setClosed(self):
 		self.closed = True
 
+	def mediaNumber(self):  # e.g. 2 for the second video, counted separately for images and videos
+		mediaType = self.media[self.index][0]
+		return sum(1 for entry in self.media[:self.index + 1] if entry[0] == mediaType)
+
 	def showImage(self):
-		url = self.images[self.index]
-		self["headline"].setText(f"Bild {self.index + 1} von {len(self.images)}")
-		self["url"].setText(url)
+		mediaType, url = self.media[self.index]
+		name = f"{'Video' if mediaType == 'video' else 'Bild'} {self.mediaNumber()}"
+		mixed = len({entry[0] for entry in self.media}) > 1
+		self["headline"].setText(f"{name} ({self.index + 1} von {len(self.media)})" if mixed else f"{name} von {len(self.media)}")
 		self["picinfo"].setText("")
 		self["picture"].hide()
+		if mediaType == "video":
+			self["waiting"].stopBlinking()
+			thumbPath = self.findVideoThumb(url)
+			if thumbPath:
+				self["headline"].setText(f"{self['headline'].getText()}  -  OK: Video abspielen")
+				self.displayImage(thumbPath)
+			else:
+				self["picinfo"].setText(f"{name}\n\nOK: Video abspielen")
+			return
 		filePath = self.findPostImage(url)
 		if filePath:
 			self["waiting"].stopBlinking()
@@ -965,14 +1073,21 @@ class openATVImage(ATVhelper):
 			widget.instance.move(ePoint(areaX, areaY))
 			self.showPic(widget, filePath)
 
+	def keyOk(self):
+		mediaType, url = self.media[self.index]
+		if mediaType == "video":
+			self.playVideo(url, self.mediaTitle, f"Video {self.mediaNumber()}")
+		else:
+			self.close()
+
 	def prevImage(self):
-		if len(self.images) > 1:
-			self.index = (self.index - 1) % len(self.images)
+		if len(self.media) > 1:
+			self.index = (self.index - 1) % len(self.media)
 			self.showImage()
 
 	def nextImage(self):
-		if len(self.images) > 1:
-			self.index = (self.index + 1) % len(self.images)
+		if len(self.media) > 1:
+			self.index = (self.index + 1) % len(self.media)
 			self.showImage()
 
 
