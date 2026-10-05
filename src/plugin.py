@@ -7,9 +7,9 @@
 #  For other uses, permission from the authors is necessary.                                            #
 #########################################################################################################
 from glob import glob
-from hashlib import md5
+from hashlib import sha256
 from os import linesep, makedirs, rename
-from os.path import exists, join
+from os.path import dirname, exists, join
 from re import compile, split, sub
 from shutil import copy2, rmtree, which
 from struct import unpack
@@ -36,6 +36,7 @@ from enigma import (
 )
 from Plugins.Plugin import PluginDescriptor
 from Screens.InfoBar import MoviePlayer
+from Screens.LogManager import LogManagerViewLog
 from Screens.MessageBox import MessageBox
 from Screens.Screen import Screen
 from Tools.BoundFunction import boundFunction
@@ -106,13 +107,16 @@ class ATVhelper(Screen, ATVglobals):
 				newFname = f"{fileParts[0]}.{extension}"
 				rename(filePath, newFname)  # rename with correct extension
 
+	def cacheName(self, url):  # unique file name for the cache of downloaded files
+		return sha256(url.encode()).hexdigest()
+
 	def findPostImage(self, url):
-		picsList = glob(join(self.IMAGEPATH, f"{md5(url.encode()).hexdigest()}.*"))
+		picsList = glob(join(self.IMAGEPATH, f"{self.cacheName(url)}.*"))
 		picsList = [pic for pic in picsList if not pic.endswith(".tmp")]
 		return picsList[0] if picsList else ""
 
 	def findVideoThumb(self, url):
-		filePath = join(self.IMAGEPATH, f"{md5(url.encode()).hexdigest()}_video.jpg")
+		filePath = join(self.IMAGEPATH, f"{self.cacheName(url)}_video.jpg")
 		return filePath if exists(filePath) else ""
 
 	def createVideoThumb(self, url, callback, seek="3"):  # grabs a frame of the video with ffmpeg (fetches only the needed parts), calls callback(errMsg, filePath)
@@ -120,7 +124,7 @@ class ATVhelper(Screen, ATVglobals):
 		if not ffmpeg:
 			callback("ffmpeg ist nicht installiert", "")
 			return
-		filePath = join(self.IMAGEPATH, f"{md5(url.encode()).hexdigest()}_video.jpg")
+		filePath = join(self.IMAGEPATH, f"{self.cacheName(url)}_video.jpg")
 		try:
 			makedirs(self.IMAGEPATH, exist_ok=True)
 		except OSError as error:
@@ -150,7 +154,7 @@ class ATVhelper(Screen, ATVglobals):
 				break
 		if errMsg or not binaryData:
 			return errMsg or "keine Daten erhalten", ""
-		tempPath = join(self.IMAGEPATH, f"{md5(url.encode()).hexdigest()}.tmp")
+		tempPath = join(self.IMAGEPATH, f"{self.cacheName(url)}.tmp")
 		try:
 			makedirs(self.IMAGEPATH, exist_ok=True)
 			with open(tempPath, "wb") as f:
@@ -481,7 +485,8 @@ class openATVPost(ATVhelper):
 	TEXTWIDGETS = 12  # size of the widget pools in the skin
 	PICWIDGETS = 6
 	BLOCKGAP = 8  # vertical space around images
-	MARKER = compile(r"\[(Link|Bild|Video)\u00a0(\d+)\]")  # markers in the text, joined by a no-break space so they never get wrapped
+	MARKER = compile(r"\[(Link|Bild|Video|Datei)\u00a0(\d+)\]")
+	MAXTEXTFILE = 8 * 1024 * 1024  # text attachments are cut after 8 MiB  # markers in the text, joined by a no-break space so they never get wrapped
 	COLORLINK = "\\c0092cbdf"  # eLabel color codes
 	COLORSELECTED = "\\c00ffcc00"
 	COLORRESET = "\\C"
@@ -502,11 +507,12 @@ class openATVPost(ATVhelper):
 		self.avatarDLlist = []  # is required, don't remove
 		self.postNo = ""
 		self.userName = ""
-		self.links, self.images, self.videos = [], [], []
+		self.links, self.images, self.videos, self.files = [], [], [], []
+		self.textFiles = set()  # indexes of the attachments which are text files
 		self.content = ""
 		self.imageFiles, self.videoThumbs, self.pixmapCache = {}, {}, {}  # {index: filePath} of images & video thumbnails, decoded pixmaps {(mediaType, index, width, height): pixmap}
 		self.rows, self.topRow, self.lineHeight = [], 0, 0  # layout rows: ("text", line, height) or ("pic", (imageIndex, width, height), height)
-		self.targets, self.selected = [], None  # images, videos & links which can be opened with OK: (rowNo, "image"|"video"|"link", index, occurrence in row)
+		self.targets, self.selected = [], None  # images, videos, files & links which can be opened with OK: (rowNo, "image"|"video"|"file"|"link", index, occurrence in row)
 		self.closed = False
 		self["waiting"] = BlinkingLabel("bitte warten...")
 		self["waiting"].startBlinking()
@@ -575,6 +581,7 @@ class openATVPost(ATVhelper):
 			self.userName = postDict.get("userName", "")
 			self.threadTitle = postDict.get("threadTitle", "") or self.threadTitle  # linked posts could be part of another thread
 			self.links, self.images, self.videos = postDict.get("links", []), postDict.get("images", []), postDict.get("videos", [])
+			self.files = postDict.get("files", [])
 			if self.images or self.videos:
 				self["key_green"].setText("Medien anzeigen")
 				self["button_green"].show()
@@ -598,7 +605,7 @@ class openATVPost(ATVhelper):
 			self.content = f"{self.postNo}: {postDict.get('fullContent', '{ohne Inhalt}')}"
 			self.buildRows()
 			self.showRows(0)
-			if self.images:
+			if self.images or self.files:
 				callInThread(self.loadImages)
 			if self.videos:
 				self.loadVideoThumbs()
@@ -615,6 +622,29 @@ class openATVPost(ATVhelper):
 					print(f"[{self.MODULE_NAME}] ERROR in module 'loadImages': {url}: {errMsg}!")
 			if filePath:
 				callFromThread(self.mediaLoaded, "image", index, filePath)
+		self.checkFiles()
+
+	def checkFiles(self):  # which attachments are text files? (runs in the download thread)
+		for index, entry in enumerate(self.files):
+			if self.closed:
+				return
+			errMsg, data, _ = fparser.getPartialData(entry["url"], 4096)
+			if errMsg:
+				print(f"[{self.MODULE_NAME}] ERROR in module 'checkFiles': {entry['url']}: {errMsg}!")
+			elif self.isText(data):
+				callFromThread(self.fileChecked, index)
+
+	def isText(self, data):  # no NUL bytes and nearly only printable characters
+		if not data or b"\x00" in data:
+			return False
+		text = data.decode("utf-8", errors="replace")
+		printable = sum(1 for char in text if char.isprintable() or char in "\n\r\t")
+		return printable >= len(text) * 0.95
+
+	def fileChecked(self, index):
+		if not self.closed:
+			self.textFiles.add(index)
+			self.relayout()
 
 	def loadVideoThumbs(self, index=0):  # one ffmpeg after the other, runs asynchronously in the main loop
 		while index < len(self.videos) and not self.closed:
@@ -638,6 +668,9 @@ class openATVPost(ATVhelper):
 		if self.closed:
 			return
 		(self.imageFiles if mediaType == "image" else self.videoThumbs)[index] = filePath
+		self.relayout()
+
+	def relayout(self):  # rebuild the layout after new content was loaded, keeping position and selection
 		topRowData = self.rows[self.topRow][1] if self.rows else None  # keep the position: look for the current top line again
 		topRow = self.topRow
 		selectedTarget = self.targets[self.selected][1:3] if self.selected is not None else None
@@ -702,7 +735,7 @@ class openATVPost(ATVhelper):
 
 		def addText(text):
 			text = sub(r"\\(?=[ntrcC])", lambda match: "\\\u200b", text)  # a zero width space keeps eLabel from interpreting e.g. '\\n' of the text
-			text = sub(r"\[(Link|Bild|Video) (\d+)\]", "[\\1\u00a0\\2]", text)
+			text = sub(r"\[(Link|Bild|Video|Datei) (\d+)\]", "[\\1\u00a0\\2]", text)
 			for paragraph in text.strip("\n").split("\n"):
 				if paragraph.startswith(fpglobals.CODEHEAD):
 					self.rows.append(("codehead", paragraph[1:], self.lineHeight))
@@ -713,7 +746,8 @@ class openATVPost(ATVhelper):
 					for line in self.wrapParagraph(paragraph):
 						self.rows.append(("text", line, self.lineHeight))
 
-		parts = split(r"\[(Bild|Video) (\d+)\]", self.content)  # [text, kind, number, text, kind, number, ...]
+		content = sub(r" ?\[Datei (\d+)\]", lambda match: match.group(0) if int(match.group(1)) - 1 in self.textFiles else "", self.content)  # only text files can be shown
+		parts = split(r"\[(Bild|Video) (\d+)\]", content)  # [text, kind, number, text, kind, number, ...]
 		text = parts[0]
 		for partNo in range(1, len(parts), 3):  # loaded images & video thumbnails become their own row, otherwise the marker remains in the text
 			kind, number = parts[partNo], parts[partNo + 1]
@@ -735,7 +769,7 @@ class openATVPost(ATVhelper):
 				self.targets.append((rowNo, data[0], data[1], 0))
 			elif rowType == "text":
 				for occurrence, match in enumerate(self.MARKER.finditer(data)):
-					targetType = {"Bild": "image", "Video": "video"}.get(match.group(1), "link")
+					targetType = {"Bild": "image", "Video": "video", "Datei": "file"}.get(match.group(1), "link")
 					self.targets.append((rowNo, targetType, int(match.group(2)) - 1, occurrence))
 
 	def visibleTargets(self):
@@ -952,11 +986,45 @@ class openATVPost(ATVhelper):
 		if targetType == "video":
 			self.playVideo(self.videos[index], self.threadTitle, f"Video {index + 1}")
 			return
+		if targetType == "file":
+			self["headline"].setText("")  # 'bitte warten...' is shown at the same position
+			self["waiting"].startBlinking()
+			self["waiting"].show()
+			callInThread(self.downloadTextFile, self.files[index])
+			return
 		link = self.links[index]
 		if link["type"] == "post":
 			self.session.openWithCallback(self.keyLinkCB, openATVPost, "", link["target"], self.favMenu, self.threadLinks)
 		else:
 			self.session.openWithCallback(self.keyLinkCB, openATVMain, threadLinks=self.threadLinks, favlink=link["target"], favMenu=True)
+
+	def downloadTextFile(self, entry):  # max. 8 MiB, saved as UTF-8 with its real name for the title of the log viewer
+		errMsg, data, complete = fparser.getPartialData(entry["url"], self.MAXTEXTFILE)
+		filePath = ""
+		if not errMsg:
+			text = data.decode("utf-8", errors="replace")
+			if not complete:
+				text = text[:text.rfind("\n") + 1] if "\n" in text else text
+				text += f"\n--- Datei nach {self.MAXTEXTFILE // 1024 // 1024} MiB abgeschnitten, der Rest wird nicht angezeigt ---\n"
+			name = entry["name"].replace("/", "_").strip() or "datei.txt"
+			filePath = join(self.IMAGEPATH, "files", self.cacheName(entry["url"]), name)
+			try:
+				makedirs(dirname(filePath), exist_ok=True)
+				with open(filePath, "w", encoding="utf-8") as f:
+					f.write(text)
+			except OSError as error:
+				errMsg, filePath = str(error), ""
+		callFromThread(self.textFileLoaded, errMsg, filePath)
+
+	def textFileLoaded(self, errMsg, filePath):
+		if self.closed:
+			return
+		self["waiting"].stopBlinking()
+		self["headline"].setText(f"THEMA: {self.threadTitle}")
+		if filePath:
+			self.session.open(LogManagerViewLog, filePath)
+		else:
+			self.session.open(MessageBox, f"Die Datei konnte nicht geladen werden:\n{errMsg}", type=MessageBox.TYPE_ERROR, timeout=5, close_on_any_key=True)
 
 	def keyLinkCB(self, home=False):
 		if home:
