@@ -267,7 +267,7 @@ class getNumber(ATVhelper):
 	def __init__(self, session, number):
 		if self.RESOLUTION == "fHD":
 			self.skin = self.skin.replace("_HD.png", "_fHD.png")
-		Screen.__init__(self, session, self.skin)
+		Screen.__init__(self, session)
 		self.field = str(number)
 		self["version"] = StaticText(self.VERSION)
 		self["headline"] = StaticText()
@@ -333,7 +333,7 @@ class openATVFav(ATVhelper):
 		self.threadLinks = threadLinks
 		if self.RESOLUTION == "fHD":
 			self.skin = self.skin.replace("_HD.png", "_fHD.png")
-		Screen.__init__(self, session, self.skin)
+		Screen.__init__(self, session)
 		self.count = 0
 		self.favlist = []
 		self.ready = False
@@ -485,8 +485,9 @@ class openATVPost(ATVhelper):
 	TEXTWIDGETS = 12  # size of the widget pools in the skin
 	PICWIDGETS = 6
 	BLOCKGAP = 8  # vertical space around images
-	MARKER = compile(r"\[(Link|Bild|Video|Datei)\u00a0(\d+)\]")
-	MAXTEXTFILE = 8 * 1024 * 1024  # text attachments are cut after 8 MiB  # markers in the text, joined by a no-break space so they never get wrapped
+	MAXIMAGEHEIGHT = 0.75  # images take max. 3/4 of the text area height, so text above/below stays visible while scrolling
+	MARKER = compile(r"\[(Link|Bild|Video|Datei)\u00a0(\d+)\]")  # markers in the text, joined by a no-break space so they never get wrapped
+	MAXTEXTFILE = 8 * 1024 * 1024  # text attachments are cut after 8 MiB
 	COLORLINK = "\\c0092cbdf"  # eLabel color codes
 	COLORSELECTED = "\\c00ffcc00"
 	COLORRESET = "\\C"
@@ -498,7 +499,8 @@ class openATVPost(ATVhelper):
 	def __init__(self, session, threadTitle, postId, favMenu, threadLinks):
 		if self.RESOLUTION == "fHD":
 			self.skin = self.skin.replace("_HD.png", "_fHD.png")
-		Screen.__init__(self, session, self.skin)
+		mandatoryWidgets = ["textarea", "picframe", "scrollthumb", f"text{self.TEXTWIDGETS - 1}", f"pic{self.PICWIDGETS - 1}", f"vidlabel{self.PICWIDGETS - 1}", f"codebg{self.CODEWIDGETS - 1}"]
+		Screen.__init__(self, session, mandatoryWidgets=mandatoryWidgets)  # an incomplete skin screen (e.g. of an older plugin version) is ignored, the embedded skin is used
 		self.postId = postId
 		self.threadTitle = threadTitle
 		self.favMenu = favMenu
@@ -756,7 +758,7 @@ class openATVPost(ATVhelper):
 			if width and height:
 				addText(text)
 				text = ""
-				scale = min(1.0, areaWidth / width, (areaHeight - self.BLOCKGAP) / height)
+				scale = min(1.0, areaWidth / width, (areaHeight * self.MAXIMAGEHEIGHT - self.BLOCKGAP) / height)
 				width, height = max(1, int(width * scale)), max(1, int(height * scale))
 				self.rows.append(("pic", (mediaType, index, width, height), height + self.BLOCKGAP))
 			else:
@@ -1106,7 +1108,7 @@ class openATVImage(ATVhelper):
 	def __init__(self, session, media, index=0, title=""):  # media: [("image"|"video", url), ...]
 		if self.RESOLUTION == "fHD":
 			self.skin = self.skin.replace("_HD.png", "_fHD.png")
-		Screen.__init__(self, session, self.skin)
+		Screen.__init__(self, session)
 		self.media = media
 		self.index = index
 		self.mediaTitle = title
@@ -1276,7 +1278,7 @@ class openATVMain(ATVhelper):
 	def __init__(self, session, threadLinks=None, favlink="", favMenu=False):
 		if self.RESOLUTION == "fHD":
 			self.skin = self.skin.replace("_HD.png", "_fHD.png")
-		Screen.__init__(self, session, self.skin)
+		Screen.__init__(self, session)
 		self.threadLinks = threadLinks or []  # required when called by OpenATVFav
 		self.favlink = favlink
 		self.favMenu = favMenu
