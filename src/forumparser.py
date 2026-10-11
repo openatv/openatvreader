@@ -29,6 +29,7 @@ class FParserGlobals:
 	MODULE_NAME: str = __name__.split(".")[-1]
 	BASEURL: str = "https://www.opena.tv"
 	FORUMHOSTS: tuple = ("opena.tv", "www.opena.tv", "reader.opena.tv")
+	DOWNLOADPATH: str = "download/file.php"  # attachments of posts
 	IMAGEEXTENSIONS: tuple = (".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp")
 	CODEHEAD: str = "\x1d"  # line prefixes in 'fullContent' for the header and the lines of a code block
 	CODELINE: str = "\x1e"
@@ -58,6 +59,20 @@ class FparserHelper:
 			errMsg = str(errMsg).replace(fpglobals.BASEURL.replace("http://", ""), "").replace("host=,'", "")
 			print(f"[{MODULE_NAME}] ERROR in module 'getBinaryData': {errMsg}")
 			return errMsg, None
+
+	def getPartialData(self, url, maxBytes, timeout=(10, 20)):  # returns (errMsg, data, complete): loads max. 'maxBytes' of a file
+		try:
+			with get(url, timeout=timeout, stream=True) as response:
+				response.raise_for_status()
+				data = b""
+				for chunk in response.iter_content(chunk_size=65536):
+					data += chunk
+					if len(data) > maxBytes:
+						return None, data[:maxBytes], False
+				return None, data, True
+		except exceptions.RequestException as errMsg:
+			print(f"[{MODULE_NAME}] ERROR in module 'getPartialData': {errMsg}")
+			return str(errMsg), None, False
 
 	def createThreadUrl(self, threadId, startPage=0):
 		return f"{fpglobals.BASEURL}/viewtopic.php?t={threadId}&start={startPage}" if threadId else ""
@@ -99,64 +114,82 @@ class FparserHelper:
 		foundpos = titleLine.rfind("Seite")
 		return titleLine[:foundpos - 3] if foundpos != -1 else titleLine
 
-	def parseContent(self, containers):  # replaces images, videos and links by markers like '[Bild 1]', '[Video 1]' and '[Link 2]' and collects their targets
-		def addUnique(itemList, item, key=None):
-			for index, entry in enumerate(itemList):
-				if (entry[key] if key else entry) == (item[key] if key else item):
-					return index + 1
-			itemList.append(item)
-			return len(itemList)
+	def addUnique(self, itemList, item, key=None):  # returns the (1-based) number of the item, appends it if it's new
+		for index, entry in enumerate(itemList):
+			if (entry[key] if key else entry) == (item[key] if key else item):
+				return index + 1
+		itemList.append(item)
+		return len(itemList)
 
-		texts, links, images, videos = [], [], [], []
-		for container in containers:
-			for codebox in container.find_all("div", class_="codebox"):  # <div class="codebox"><p>Code: <a>Alles auswählen</a></p><pre><code>...</code></pre></div>
-				codeEl = codebox.find("code")
-				lines = (codeEl if isinstance(codeEl, Tag) else codebox).get_text().rstrip("\n").split("\n")
-				codeLines = "\n".join(f"{fpglobals.CODELINE}{line}" for line in lines)
-				codebox.replace_with(f"\n{fpglobals.CODEHEAD}Code:\n{codeLines}\n")
-			for video in container.find_all("video"):  # e.g. <video class="auto-video" src="https://.../clip.mp4">
-				source = video.find("source", src=True)
-				src = str(video.get("src") or (source.get("src") if isinstance(source, Tag) else "") or "")
+	def replaceCodeboxes(self, container):  # <div class="codebox"><p>Code: <a>Alles auswählen</a></p><pre><code>...</code></pre></div>
+		for codebox in container.find_all("div", class_="codebox"):
+			codeEl = codebox.find("code")
+			lines = (codeEl if isinstance(codeEl, Tag) else codebox).get_text().rstrip("\n").split("\n")
+			codeLines = "\n".join(f"{fpglobals.CODELINE}{line}" for line in lines)
+			codebox.replace_with(f"\n{fpglobals.CODEHEAD}Code:\n{codeLines}\n")
+
+	def replaceVideos(self, container, found):  # e.g. <video class="auto-video" src="https://.../clip.mp4">
+		for video in container.find_all("video"):
+			source = video.find("source", src=True)
+			src = str(video.get("src") or (source.get("src") if isinstance(source, Tag) else "") or "")
+			if src:
+				video.replace_with(f"[Video {self.addUnique(found['videos'], self.absoluteUrl(src))}]")
+
+	def imageSource(self, img):  # returns (src, element to replace) of a post image
+		src, parent = str(img.get("src") or ""), img.parent
+		if not isinstance(parent, Tag) or parent.name != "a":
+			return src, img
+		href = str(parent.get("href") or "")  # linked image: replace the whole link
+		return (href if fpglobals.DOWNLOADPATH in href else src), parent  # attachment: use the full size image instead of the thumbnail
+
+	def replaceImages(self, container, found):
+		for img in container.find_all("img"):
+			classes = img.get("class") or []
+			if "smilies" in classes:
+				img.replace_with(str(img.get("alt") or ""))
+			elif "postimage" in classes:
+				src, target = self.imageSource(img)
 				if src:
-					video.replace_with(f"[Video {addUnique(videos, self.absoluteUrl(src))}]")
-			for img in container.find_all("img"):
-				classes = img.get("class") or []
-				if "smilies" in classes:
-					img.replace_with(str(img.get("alt") or ""))
-				elif "postimage" in classes:
-					src, target = str(img.get("src") or ""), img
-					parent = img.parent
-					if isinstance(parent, Tag) and parent.name == "a":  # linked image: replace the whole link
-						target = parent
-						href = str(parent.get("href") or "")
-						if "download/file.php" in href:  # attachment: use the full size image instead of the thumbnail
-							src = href
-					if src:
-						target.replace_with(f"[Bild {addUnique(images, self.absoluteUrl(src))}]")
-			for link in container.find_all("a", href=True):
-				href = str(link.get("href") or "")
-				if not href or href.startswith(("#", "javascript")) or "memberlist.php" in href:
-					continue
-				url = self.absoluteUrl(href)
-				linkType, linkTarget = self.classifyLink(url)
-				linkText = link.get_text(" ", strip=True)
-				if linkType == "extern" and "download/file.php" in url and linkText.lower().endswith(fpglobals.VIDEOEXTENSIONS):
-					linkType = "video"  # video attachment, the file name is only part of the link text
-				if linkType == "extern":  # can't be opened on the receiver anyway
-					continue
-				if linkType == "image":
-					marker = f"[Bild {addUnique(images, url)}]"
-				elif linkType == "video":
-					marker = f"[Video {addUnique(videos, url)}]"
-				else:
-					text = linkText or str(link.get("aria-label") or "")
-					marker = f"[Link {addUnique(links, {'type': linkType, 'target': linkTarget, 'url': url, 'text': text}, key='url')}]"
-				if linkText:
-					link.insert_after(f" {marker}")
-				else:  # e.g. the arrow icon of a quote linking to the quoted post
-					link.replace_with(f"{marker} ")
+					target.replace_with(f"[Bild {self.addUnique(found['images'], self.absoluteUrl(src))}]")
+
+	def linkMarker(self, link, url, linkText, found):  # marker of a link, "" for links which can't be opened on the receiver
+		linkType, linkTarget = self.classifyLink(url)
+		if linkType == "extern" and fpglobals.DOWNLOADPATH in url:  # attachment: video by its file name, otherwise the plugin checks whether it is text
+			linkType = "video" if linkText.lower().endswith(fpglobals.VIDEOEXTENSIONS) else "file"
+		if linkType == "image":
+			return f"[Bild {self.addUnique(found['images'], url)}]"
+		if linkType == "video":
+			return f"[Video {self.addUnique(found['videos'], url)}]"
+		if linkType == "file":
+			return f"[Datei {self.addUnique(found['files'], {'url': url, 'name': linkText}, key='url')}]"
+		if linkType == "extern":
+			return ""
+		text = linkText or str(link.get("aria-label") or "")
+		return f"[Link {self.addUnique(found['links'], {'type': linkType, 'target': linkTarget, 'url': url, 'text': text}, key='url')}]"
+
+	def replaceLinks(self, container, found):
+		for link in container.find_all("a", href=True):
+			href = str(link.get("href") or "")
+			if not href or href.startswith(("#", "javascript")) or "memberlist.php" in href:
+				continue
+			linkText = link.get_text(" ", strip=True)
+			marker = self.linkMarker(link, self.absoluteUrl(href), linkText, found)
+			if not marker:
+				continue
+			if linkText:
+				link.insert_after(f" {marker}")
+			else:  # e.g. the arrow icon of a quote linking to the quoted post
+				link.replace_with(f"{marker} ")
+
+	def parseContent(self, containers):  # replaces images, videos, files and links by markers like '[Bild 1]', '[Video 1]', '[Datei 1]' and '[Link 2]' and collects their targets
+		texts, found = [], {"links": [], "images": [], "videos": [], "files": []}
+		for container in containers:
+			self.replaceCodeboxes(container)
+			self.replaceVideos(container, found)
+			self.replaceImages(container, found)
+			self.replaceLinks(container, found)
 			texts.append(container.get_text())
-		return texts, links, images, videos
+		return texts, found["links"], found["images"], found["videos"], found["files"]
 
 	def parseLatest(self, startPage=0):
 		def setPostKey(key, value, replacements=()):
@@ -380,10 +413,18 @@ class FparserHelper:
 				contentEl = postBody.find("div", {"class": "content"})
 				if isinstance(contentEl, Tag):
 					attachBoxes = [box for box in postBody.find_all("dl", {"class": "attachbox"}) if isinstance(box, Tag) and not box.find_parent("div", {"class": "content"})]
-					texts, links, images, videos = self.parseContent([contentEl] + attachBoxes)
+					texts, links, images, videos, files = self.parseContent([contentEl] + attachBoxes)
 					fullContent = texts[0]
-					for attachText in texts[1:]:  # e.g. "Dateianhänge [Bild 3] [Bild 4]"
-						fullContent += f"\n\n{' '.join(attachText.split())}"
+					for attachText in texts[1:]:  # "Dateianhänge:" and one line per attachment, e.g. "messages.log [Datei 1] (179.62 KiB) 4-mal heruntergeladen"
+						lines = []
+						for line in (line.strip() for line in attachText.split("\n")):
+							if line.startswith("(") and lines:
+								lines[-1] += f" {line}"
+							elif line:
+								lines.append(line)
+						if lines:
+							lines[0] = f"{lines[0].rstrip(':')}:"
+							fullContent += "\n\n" + "\n".join(lines)
 					while "\n\n\n" in fullContent:
 						fullContent = fullContent.replace("\n\n\n", "\n\n")
 					setPostKey("fullContent", fullContent)
@@ -393,6 +434,8 @@ class FparserHelper:
 						postDict["images"] = images
 					if videos:
 						postDict["videos"] = videos
+					if files:
+						postDict["files"] = files
 				changeLine = postBody.find("div", {"class": "notice"})
 				if isinstance(changeLine, Tag):
 					setPostKey("changeLine", changeLine.get_text().strip())
