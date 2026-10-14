@@ -459,7 +459,7 @@ class openATVPost(ATVhelper):
 		<widget source="registered" render="Label" position="866,106" size="333,28" font="Regular;21" halign="right" valign="center" foregroundColor="#00b2b300" transparent="1" zPosition="1" />
 		<widget source="datum" render="Label" position="866,133" size="333,28" font="Regular;21" halign="right" valign="center" foregroundColor="#005fb300" transparent="1" zPosition="1" />
 		<ePixmap position="13,166" size="1200,1" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/line_HD.png" zPosition="1" />
-		<widget name="textarea" position="26,186" size="1160,433" font="Regular;24" halign="left" foregroundColor="white" transparent="1" zPosition="0" />
+		<widget name="textarea" position="26,186" size="1160,433" font="Regular;24" halign="left" foregroundColor="white" alphatest="blend" transparent="1" zPosition="0" />
 		<widget name="scrollbar" position="1196,186" size="2,433" backgroundColor="#00505050" zPosition="1" />
 		<widget name="scrollthumb" position="1194,186" size="6,40" backgroundColor="#00b3b3b3" zPosition="2" />
 		<widget name="picframe" position="26,186" size="10,10" backgroundColor="#00ffcc00" zPosition="0" />
@@ -469,7 +469,7 @@ class openATVPost(ATVhelper):
 		<widget name="codebg3" position="26,186" size="10,10" backgroundColor="#00283038" zPosition="0" />
 """
 	# pool of widgets for the visible text blocks and images, positioned at runtime
-	skin += "".join(f'<widget name="text{no}" position="26,186" size="1160,30" font="Regular;24" halign="left" foregroundColor="white" transparent="1" zPosition="1" />\n' for no in range(12))
+	skin += "".join(f'<widget name="text{no}" position="26,186" size="1160,30" font="Regular;24" halign="left" foregroundColor="white" alphatest="blend" transparent="1" zPosition="1" />\n' for no in range(12))
 	skin += "".join(f'<widget name="pic{no}" position="26,186" size="10,10" alphatest="blend" transparent="1" zPosition="1" />\n' for no in range(6))
 	skin += "".join(f'<widget name="vidlabel{no}" position="26,186" size="170,34" font="Regular;20" halign="center" valign="center" foregroundColor="white" backgroundColor="#00000000" zPosition="2" />\n' for no in range(6))
 	skin += """		<ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/OpenATVreader/icons/key_red_HD.png" position="14,636" size="26,38" alphatest="blend" />
