@@ -2,7 +2,7 @@
 #                                                                                                     #
 #  forumparser is a parser for the OpenA.TV fourum homepage using BeatifulSoup (BS4) and              #
 #  it is a multiplatform tool (runs on Enigma2 & Windows and probably many others)                    #
-#  Coded by Mr.Servo @ openATV (c) 2025                                                               #
+#  Coded by Mr.Servo @ openATV (c) 2025 - 2026                                                        #
 #  Learn more about the tool by running it in the shell: "python Buildstatus.py -h"                   #
 #  ---------------------------------------------------------------------------------------------------#
 #  This plugin is licensed under the GNU version 3.0 <https://www.gnu.org/licenses/gpl-3.0.en.html>.  #
