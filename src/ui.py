@@ -49,34 +49,37 @@ class ATVglobals:
 	MODULE_NAME = __name__.split(".")[-2]
 
 
-class ATVhelper(Screen, ATVglobals):
+atvglobals = ATVglobals
+
+
+class ATVhelper(Screen):
 	def handleAvatar(self, widget, pixUrl, callback=None):
-		avatarPix, urlFileName, filePath = None, "", join(self.AVATARPATH, "unknown.png")
+		avatarPix, urlFileName, filePath = None, "", join(atvglobals.AVATARPATH, "unknown.png")
 		if pixUrl:
 			if pixUrl.startswith("./"):  # in case it's an plugin avatar ('unknown.png' and 'user_stat.png')
-				filePath = join(self.AVATARPATH, pixUrl.replace("./", ""))
+				filePath = join(atvglobals.AVATARPATH, pixUrl.replace("./", ""))
 			else:
 				urlFileName = f"{pixUrl[pixUrl.rfind('?avatar=') + 8:]}"
 				if urlFileName:  # possibly the file name had to be renamed according to the correct image type
-					picsList = glob(join(self.AVATARPATH, f"{urlFileName.split('.')[0]}.*"))
+					picsList = glob(join(atvglobals.AVATARPATH, f"{urlFileName.split('.')[0]}.*"))
 					filePath = picsList[0] if picsList else ""  # use first hit found
 		if filePath and exists(filePath):
 			try:
 				avatarPix = LoadPixmap(cached=True, path=filePath)
 			except Exception as error:  # noqa: BLE001 - a broken avatar file must not stop the plugin
-				print(f"[{self.MODULE_NAME}] ERROR in module 'handleAvatar': {error}!")
+				print(f"[{atvglobals.MODULE_NAME}] ERROR in module 'handleAvatar': {error}!")
 			if pixUrl in self.avatarDLlist:
 				self.avatarDLlist.remove(pixUrl)
 		elif pixUrl not in self.avatarDLlist:  # avoid multiple threaded downloads of equal avatars
 			self.avatarDLlist.append(pixUrl)
 			if callback and urlFileName:
-				callInThread(callback, widget, pixUrl, join(self.AVATARPATH, urlFileName))
+				callInThread(callback, widget, pixUrl, join(atvglobals.AVATARPATH, urlFileName))
 		return avatarPix, filePath
 
 	def downloadAvatar(self, url, filePath):  # file extensions in url could be wrong
 		errMsg, binaryData = fparser.getBinaryData(url)
 		if errMsg:
-			print(f"[{self.MODULE_NAME}] ERROR in module downloadAvatar': {errMsg}!")
+			print(f"[{atvglobals.MODULE_NAME}] ERROR in module downloadAvatar': {errMsg}!")
 			errText = f"Der OpenA.TV Server ist zur Zeit nicht erreichbar.\n{errMsg}"
 			self.session.open(MessageBox, errText, MessageBox.TYPE_INFO, timeout=30, close_on_any_key=True)
 			return
@@ -85,7 +88,7 @@ class ATVhelper(Screen, ATVglobals):
 				with open(filePath, "wb") as f:
 					f.write(binaryData)
 			except OSError as errMsg:
-				print(f"[{self.MODULE_NAME}] ERROR in module 'downloadAvatar': {errMsg}!")
+				print(f"[{atvglobals.MODULE_NAME}] ERROR in module 'downloadAvatar': {errMsg}!")
 				self.session.open(MessageBox, errMsg, MessageBox.TYPE_INFO, timeout=30, close_on_any_key=True)
 			fileParts = filePath.split(".")
 			extension = {0: "png", 1: "jpg", 3: "gif", 4: "svg", 5: "webp"}.get(detectImageType(filePath), fileParts[1])
@@ -97,12 +100,12 @@ class ATVhelper(Screen, ATVglobals):
 		return sha256(url.encode()).hexdigest()
 
 	def findPostImage(self, url):
-		picsList = glob(join(self.IMAGEPATH, f"{self.cacheName(url)}.*"))
+		picsList = glob(join(atvglobals.IMAGEPATH, f"{self.cacheName(url)}.*"))
 		picsList = [pic for pic in picsList if not pic.endswith(".tmp")]
 		return picsList[0] if picsList else ""
 
 	def findVideoThumb(self, url):
-		filePath = join(self.IMAGEPATH, f"{self.cacheName(url)}_video.jpg")
+		filePath = join(atvglobals.IMAGEPATH, f"{self.cacheName(url)}_video.jpg")
 		return filePath if exists(filePath) else ""
 
 	def createVideoThumb(self, url, callback, seek="3"):  # grabs a frame of the video with ffmpeg (fetches only the needed parts), calls callback(errMsg, filePath)
@@ -110,9 +113,9 @@ class ATVhelper(Screen, ATVglobals):
 		if not ffmpeg:
 			callback("ffmpeg ist nicht installiert", "")
 			return
-		filePath = join(self.IMAGEPATH, f"{self.cacheName(url)}_video.jpg")
+		filePath = join(atvglobals.IMAGEPATH, f"{self.cacheName(url)}_video.jpg")
 		try:
-			makedirs(self.IMAGEPATH, exist_ok=True)
+			makedirs(atvglobals.IMAGEPATH, exist_ok=True)
 		except OSError as error:
 			callback(str(error), "")
 			return
@@ -140,9 +143,9 @@ class ATVhelper(Screen, ATVglobals):
 				break
 		if errMsg or not binaryData:
 			return errMsg or "keine Daten erhalten", ""
-		tempPath = join(self.IMAGEPATH, f"{self.cacheName(url)}.tmp")
+		tempPath = join(atvglobals.IMAGEPATH, f"{self.cacheName(url)}.tmp")
 		try:
-			makedirs(self.IMAGEPATH, exist_ok=True)
+			makedirs(atvglobals.IMAGEPATH, exist_ok=True)
 			with open(tempPath, "wb") as f:
 				f.write(binaryData)
 			extension = {0: "png", 1: "jpg", 3: "gif", 4: "svg", 5: "webp"}.get(detectImageType(tempPath))
@@ -188,7 +191,7 @@ class ATVhelper(Screen, ATVglobals):
 						continue
 					pos += 2 + unpack(">H", data[pos + 2:pos + 4])[0]
 		except (OSError, IndexError, ValueError) as error:
-			print(f"[{self.MODULE_NAME}] ERROR in module 'getImageSize': {error}!")
+			print(f"[{atvglobals.MODULE_NAME}] ERROR in module 'getImageSize': {error}!")
 		return 0, 0
 
 	def loadScaledPixmap(self, filePath, width, height):  # decodes the image directly in the needed size (saves memory)
@@ -216,9 +219,9 @@ class ATVhelper(Screen, ATVglobals):
 	def favoriteExists(self, session, favname, favlink):
 		self.session = session
 		favfound = False
-		if favname and favlink and exists(self.FAVORITEN):
+		if favname and favlink and exists(atvglobals.FAVORITEN):
 			try:
-				with open(self.FAVORITEN) as f:
+				with open(atvglobals.FAVORITEN) as f:
 					for line in f.read().split("\n"):
 						if favlink in line:
 							favfound = True
@@ -229,9 +232,9 @@ class ATVhelper(Screen, ATVglobals):
 
 	def writeFavorite(self, session, favname, favlink):
 		self.session = session
-		if favname and favlink and exists(self.FAVORITEN):
+		if favname and favlink and exists(atvglobals.FAVORITEN):
 			try:
-				with open(self.FAVORITEN, "a") as f:
+				with open(atvglobals.FAVORITEN, "a") as f:
 					f.write(f"{favname}\t{favlink}{linesep}")
 			except OSError as errMsg:
 				self.session.open(MessageBox, f"Favoriten konnten nicht geschrieben werden:\n'{errMsg}'", type=MessageBox.TYPE_INFO, timeout=2, close_on_any_key=True)
@@ -251,11 +254,11 @@ class getNumber(ATVhelper):
 	</screen>"""
 
 	def __init__(self, session, number):
-		if self.RESOLUTION == "fHD":
+		if atvglobals.RESOLUTION == "fHD":
 			self.skin = self.skin.replace("_HD.png", "_fHD.png")
 		Screen.__init__(self, session)
 		self.field = str(number)
-		self["version"] = StaticText(self.VERSION)
+		self["version"] = StaticText(atvglobals.VERSION)
 		self["headline"] = StaticText()
 		self["number"] = StaticText(self.field)
 		self['actions'] = NumberActionMap(['NumberActions', 'OkCancelActions'], {
@@ -317,13 +320,13 @@ class openATVFav(ATVhelper):
 
 	def __init__(self, session, threadLinks):
 		self.threadLinks = threadLinks
-		if self.RESOLUTION == "fHD":
+		if atvglobals.RESOLUTION == "fHD":
 			self.skin = self.skin.replace("_HD.png", "_fHD.png")
 		Screen.__init__(self, session)
 		self.count = 0
 		self.favlist = []
 		self.ready = False
-		self["version"] = StaticText(self.VERSION)
+		self["version"] = StaticText(atvglobals.VERSION)
 		self["headline"] = StaticText("Favoriten")
 		self["key_red"] = StaticText("Favorit entfernen")
 		self["key_blue"] = StaticText("Startseite")
@@ -342,9 +345,9 @@ class openATVFav(ATVhelper):
 		self.ready = False
 		self.count = 0
 		menutexts = []
-		if exists(self.FAVORITEN):
+		if exists(atvglobals.FAVORITEN):
 			try:
-				with open(self.FAVORITEN) as f:
+				with open(atvglobals.FAVORITEN) as f:
 					for line in f.read().split(linesep):
 						if "\t" in line:
 							self.count += 1
@@ -374,7 +377,7 @@ class openATVFav(ATVhelper):
 			self.close(True)
 
 	def keyRed(self):
-		if exists(self.FAVORITEN):
+		if exists(atvglobals.FAVORITEN):
 			curridx = self["favMenu"].getCurrentIndex()
 			favname = self.favlist[curridx][0]
 			favlink = self.favlist[curridx][1]
@@ -385,16 +388,16 @@ class openATVFav(ATVhelper):
 		if answer is True:
 			data = ""
 			try:
-				with open(self.FAVORITEN) as f:
+				with open(atvglobals.FAVORITEN) as f:
 					for line in f.read().split("\n"):
 						if favlink not in line and line != "\n" and line != "":
 							data += f"{line}{linesep}"
 			except OSError as errMsg:
 				self.session.open(MessageBox, f"Favoriten konnten nicht gelesen werden:\n'{errMsg}'", type=MessageBox.TYPE_INFO, timeout=2, close_on_any_key=True)
 			try:
-				with open(f"{self.FAVORITEN}.new", "w") as f:
+				with open(f"{atvglobals.FAVORITEN}.new", "w") as f:
 					f.write(data)
-				rename(f"{self.FAVORITEN}.new", self.FAVORITEN)
+				rename(f"{atvglobals.FAVORITEN}.new", atvglobals.FAVORITEN)
 			except OSError as errMsg:
 				self.session.open(MessageBox, f"Favoriten konnten nicht gelesen werden:\n'{errMsg}'", type=MessageBox.TYPE_INFO, timeout=2, close_on_any_key=True)
 			self.favlist = []
@@ -483,7 +486,7 @@ class openATVPost(ATVhelper):
 	CODEINDENT = "\u00a0" * 3
 
 	def __init__(self, session, threadTitle, postId, favMenu, threadLinks):
-		if self.RESOLUTION == "fHD":
+		if atvglobals.RESOLUTION == "fHD":
 			self.skin = self.skin.replace("_HD.png", "_fHD.png")
 		mandatoryWidgets = ["textarea", "picframe", "scrollthumb", f"text{self.TEXTWIDGETS - 1}", f"pic{self.PICWIDGETS - 1}", f"vidlabel{self.PICWIDGETS - 1}", f"codebg{self.CODEWIDGETS - 1}"]
 		Screen.__init__(self, session, mandatoryWidgets=mandatoryWidgets)  # an incomplete skin screen (e.g. of an older plugin version) is ignored, the embedded skin is used
@@ -505,7 +508,7 @@ class openATVPost(ATVhelper):
 		self["waiting"] = BlinkingLabel("bitte warten...")
 		self["waiting"].startBlinking()
 		self["waiting"].show()
-		self["version"] = StaticText(self.VERSION)
+		self["version"] = StaticText(atvglobals.VERSION)
 		for widget in ["headline", "postid", "username", "usertitle", "postcnt", "thxgiven", "thxreceived", "registered", "residence", "datum", "key_green"]:
 			self[widget] = StaticText()
 		for widget in ["online", "avatar", "userrank", "button_green"]:
@@ -574,11 +577,11 @@ class openATVPost(ATVhelper):
 				self["key_green"].setText("Medien anzeigen")
 				self["button_green"].show()
 			_, filePath = self.handleAvatar(self["avatar"], postDict.get("avatarUrl", ""), self.handleAvatarShow)
-			self.showPic(self["avatar"], f"{filePath if filePath and exists(filePath) else join(self.AVATARPATH, "unknown.png")}")
+			self.showPic(self["avatar"], f"{filePath if filePath and exists(filePath) else join(atvglobals.AVATARPATH, "unknown.png")}")
 			userRank = postDict.get("userRank", "")
 			self.handleIcon(self["userrank"], userRank, self.handleIconShow)
 			online = postDict.get("online", "")
-			self.showPic(self["online"], join(self.PLUGINPATH, f"{'icons/online' if online else 'icons/offline'}_{self.RESOLUTION}.png"), scale=False)
+			self.showPic(self["online"], join(atvglobals.PLUGINPATH, f"{'icons/online' if online else 'icons/offline'}_{atvglobals.RESOLUTION}.png"), scale=False)
 			self["waiting"].stopBlinking()
 			self["headline"].setText(f"THEMA: {self.threadTitle}")
 			self["postid"].setText(f"ID: {self.postId}")
@@ -607,7 +610,7 @@ class openATVPost(ATVhelper):
 			if not filePath:
 				errMsg, filePath = self.downloadPostImage(url)
 				if errMsg:
-					print(f"[{self.MODULE_NAME}] ERROR in module 'loadImages': {url}: {errMsg}!")
+					print(f"[{atvglobals.MODULE_NAME}] ERROR in module 'loadImages': {url}: {errMsg}!")
 			if filePath:
 				callFromThread(self.mediaLoaded, "image", index, filePath)
 		self.checkFiles()
@@ -618,7 +621,7 @@ class openATVPost(ATVhelper):
 				return
 			errMsg, data, _ = fparser.getPartialData(entry["url"], 4096)
 			if errMsg:
-				print(f"[{self.MODULE_NAME}] ERROR in module 'checkFiles': {entry['url']}: {errMsg}!")
+				print(f"[{atvglobals.MODULE_NAME}] ERROR in module 'checkFiles': {entry['url']}: {errMsg}!")
 			elif self.isText(data):
 				callFromThread(self.fileChecked, index)
 
@@ -647,7 +650,7 @@ class openATVPost(ATVhelper):
 		if self.closed:
 			return
 		if errMsg:
-			print(f"[{self.MODULE_NAME}] ERROR in module 'loadVideoThumbs': {self.videos[index]}: {errMsg}!")
+			print(f"[{atvglobals.MODULE_NAME}] ERROR in module 'loadVideoThumbs': {self.videos[index]}: {errMsg}!")
 		if filePath:
 			self.mediaLoaded("video", index, filePath)
 		self.loadVideoThumbs(index + 1)
@@ -909,10 +912,10 @@ class openATVPost(ATVhelper):
 		iconPix = None
 		if iconUrl:
 			if iconUrl.startswith("./"):  # in case it's an plugin icon
-				filePath = join(self.AVATARPATH, iconUrl.replace("./", ""))
+				filePath = join(atvglobals.AVATARPATH, iconUrl.replace("./", ""))
 			else:
 				fileName = f"{iconUrl[iconUrl.rfind('/') + 1:]}"
-				filePath = join(self.AVATARPATH, fileName) if fileName else join(self.AVATARPATH, "unknown.png")
+				filePath = join(atvglobals.AVATARPATH, fileName) if fileName else join(atvglobals.AVATARPATH, "unknown.png")
 			if filePath and exists(filePath):
 				iconPix = LoadPixmap(cached=True, path=filePath)
 				self.showPic(widget, filePath)
@@ -927,7 +930,7 @@ class openATVPost(ATVhelper):
 	def downloadIcon(self, url, filePath):
 		errMsg, binaryData = fparser.getBinaryData(url)
 		if errMsg:
-			print(f"[{self.MODULE_NAME}] ERROR in module 'downloadIcon': {errMsg}!")
+			print(f"[{atvglobals.MODULE_NAME}] ERROR in module 'downloadIcon': {errMsg}!")
 			errText = f"Der OpenA.TV Server ist zur Zeit nicht erreichbar.\n{errMsg}"
 			self.session.open(MessageBox, errText, MessageBox.TYPE_INFO, timeout=30, close_on_any_key=True)
 			return
@@ -936,7 +939,7 @@ class openATVPost(ATVhelper):
 				with open(filePath, "wb") as f:
 					f.write(binaryData)
 			except OSError as errMsg:
-				print(f"[{self.MODULE_NAME}] ERROR in module 'downloadIcon': {errMsg}!")
+				print(f"[{atvglobals.MODULE_NAME}] ERROR in module 'downloadIcon': {errMsg}!")
 				self.session.open(MessageBox, errMsg, MessageBox.TYPE_INFO, timeout=30, close_on_any_key=True)
 		fileParts = filePath.split(".")
 		extension = {0: "png", 1: "jpg", 3: "gif", 4: "svg", 5: "webp"}.get(detectImageType(filePath), fileParts[1])
@@ -989,13 +992,13 @@ class openATVPost(ATVhelper):
 	def downloadTextFile(self, entry):  # max. 8 MiB, saved as UTF-8 with its real name for the title of the log viewer
 		errMsg, data, complete = fparser.getPartialData(entry["url"], self.MAXTEXTFILE)
 		filePath = ""
-		if not errMsg:
+		if not errMsg and data:
 			text = data.decode("utf-8", errors="replace")
 			if not complete:
 				text = text[:text.rfind("\n") + 1] if "\n" in text else text
 				text += f"\n--- Datei nach {self.MAXTEXTFILE // 1024 // 1024} MiB abgeschnitten, der Rest wird nicht angezeigt ---\n"
 			name = entry["name"].replace("/", "_").strip() or "datei.txt"
-			filePath = join(self.IMAGEPATH, "files", self.cacheName(entry["url"]), name)
+			filePath = join(atvglobals.IMAGEPATH, "files", self.cacheName(entry["url"]), name)
 			try:
 				makedirs(dirname(filePath), exist_ok=True)
 				with open(filePath, "w", encoding="utf-8") as f:
@@ -1092,14 +1095,14 @@ class openATVImage(ATVhelper):
 	</screen>"""
 
 	def __init__(self, session, media, index=0, title=""):  # media: [("image"|"video", url), ...]
-		if self.RESOLUTION == "fHD":
+		if atvglobals.RESOLUTION == "fHD":
 			self.skin = self.skin.replace("_HD.png", "_fHD.png")
 		Screen.__init__(self, session)
 		self.media = media
 		self.index = index
 		self.mediaTitle = title
 		self["waiting"] = BlinkingLabel("bitte warten...")
-		self["version"] = StaticText(self.VERSION)
+		self["version"] = StaticText(atvglobals.VERSION)
 		for widget in ["headline", "picinfo"]:
 			self[widget] = StaticText()
 		self["key_page"] = StaticText("links/rechts: zurück/vor" if len(media) > 1 else "")
@@ -1160,7 +1163,7 @@ class openATVImage(ATVhelper):
 		if filePath:
 			self.displayImage(filePath)
 		else:
-			print(f"[{self.MODULE_NAME}] ERROR in module 'downloadImage': {errMsg}!")
+			print(f"[{atvglobals.MODULE_NAME}] ERROR in module 'downloadImage': {errMsg}!")
 			self["picinfo"].setText(f"Das Bild konnte nicht geladen werden:\n{errMsg}")
 
 	def displayImage(self, filePath):  # scale the image to fit into the picture area (max. twice its size) and center it
@@ -1262,7 +1265,7 @@ class openATVMain(ATVhelper):
 	</screen>"""
 
 	def __init__(self, session, threadLinks=None, favlink="", favMenu=False):
-		if self.RESOLUTION == "fHD":
+		if atvglobals.RESOLUTION == "fHD":
 			self.skin = self.skin.replace("_HD.png", "_fHD.png")
 		Screen.__init__(self, session)
 		self.threadLinks = threadLinks or []  # required when called by OpenATVFav
@@ -1275,7 +1278,7 @@ class openATVMain(ATVhelper):
 		self.postList, self.mainTexts, self.threadTexts, self.menuPics, self.threadPics, self.avatarDLlist = [], [], [], [], [], []
 		self.skinLock = Lock()  # avatar download threads and page loads update the list concurrently
 		self.currMode = "menu"
-		self["version"] = StaticText(self.VERSION)
+		self["version"] = StaticText(atvglobals.VERSION)
 		self["waiting"] = BlinkingLabel("bitte warten...")
 		self["waiting"].startBlinking()
 		self["waiting"].show()
@@ -1314,14 +1317,14 @@ class openATVMain(ATVhelper):
 			"9": self.gotoPage
 		}, -1)
 		self.checkFiles()
-		linefile = join(self.PLUGINPATH, f"icons/line_{self.RESOLUTION}.png")
+		linefile = join(atvglobals.PLUGINPATH, f"icons/line_{atvglobals.RESOLUTION}.png")
 		self.linePix = LoadPixmap(cached=True, path=linefile) if exists(linefile) else None
-		statusFile = join(self.PLUGINPATH, f"icons/online_{self.RESOLUTION}.png")
+		statusFile = join(atvglobals.PLUGINPATH, f"icons/online_{atvglobals.RESOLUTION}.png")
 		self.online = LoadPixmap(cached=True, path=statusFile) if exists(statusFile) else None
-		statusFile = join(self.PLUGINPATH, f"icons/offline_{self.RESOLUTION}.png")
+		statusFile = join(atvglobals.PLUGINPATH, f"icons/offline_{atvglobals.RESOLUTION}.png")
 		self.offline = LoadPixmap(cached=True, path=statusFile) if exists(statusFile) else None
-		copy2(join(self.PLUGINPATH, "icons/user_stat.png"), self.AVATARPATH)
-		copy2(join(self.PLUGINPATH, "icons/unknown.png"), self.AVATARPATH)
+		copy2(join(atvglobals.PLUGINPATH, "icons/user_stat.png"), atvglobals.AVATARPATH)
+		copy2(join(atvglobals.PLUGINPATH, "icons/unknown.png"), atvglobals.AVATARPATH)
 		self.onLayoutFinish.append(self.layoutFinished)
 
 	def layoutFinished(self):
@@ -1331,8 +1334,8 @@ class openATVMain(ATVhelper):
 			self.terminateTimer.callback.append(boundFunction(self.terminatePlugin, errMsg))
 			self.terminateTimer.start(200, True)
 		else:
-			self.showPic(self["button_page"], join(self.PLUGINPATH, f"icons/key_updown_{self.RESOLUTION}.png"), show=False, scale=False)
-			self.showPic(self["button_keypad"], join(self.PLUGINPATH, f"icons/keypad_{self.RESOLUTION}.png"), show=False, scale=False)
+			self.showPic(self["button_page"], join(atvglobals.PLUGINPATH, f"icons/key_updown_{atvglobals.RESOLUTION}.png"), show=False, scale=False)
+			self.showPic(self["button_keypad"], join(atvglobals.PLUGINPATH, f"icons/keypad_{atvglobals.RESOLUTION}.png"), show=False, scale=False)
 			self.updateYellowButton()
 			if self.favlink or self.threadLink and self.threadLinks:
 				callInThread(self.makeThread, self.displayHTMLerror)
@@ -1363,7 +1366,7 @@ class openATVMain(ATVhelper):
 		self.ready = False
 		userList = []
 		for startPage in range(5):  # load the first five pages only
-			errMsg, latestDict = fparser.parseLatest(int(startPage * self.POSTSPERMAIN))
+			errMsg, latestDict = fparser.parseLatest(int(startPage * atvglobals.POSTSPERMAIN))
 			if errMsg:
 				errorCallBack(errMsg=errMsg)
 			for post in latestDict.get("threads", []):
@@ -1386,7 +1389,7 @@ class openATVMain(ATVhelper):
 				threadId = post.get("threadId", "")
 				self.mainTexts.append([title, creation, forum, postTime, userName, stats])
 				self.menuPics.append([None, False])  # 'avatar' and 'online' are not available on starting page
-				startPage = postsInt // self.POSTSPERTHREAD * self.POSTSPERTHREAD
+				startPage = postsInt // atvglobals.POSTSPERTHREAD * atvglobals.POSTSPERTHREAD
 				self.threadLinks.append(fparser.createThreadUrl(threadId, startPage if threadId else 0))
 				self.updateSkin()
 		userList = ", ".join(userList)
@@ -1419,7 +1422,7 @@ class openATVMain(ATVhelper):
 		self.currPage, self.maxPages = threadDict.get("currPage", 1), threadDict.get("maxPages", 1)
 		threadId = threadDict.get("threadId")
 		if threadId:  # keep the link of the current page, so paging & refresh also work for favorites and linked threads
-			self.threadLink = fparser.createThreadUrl(threadId, (self.currPage - 1) * self.POSTSPERTHREAD)
+			self.threadLink = fparser.createThreadUrl(threadId, (self.currPage - 1) * atvglobals.POSTSPERTHREAD)
 		self["waiting"].stopBlinking()
 		self["headline"].setText(f"THEMA: {threadTitle}")
 		self["pagecount"].setText(f"Seite {self.currPage} von {self.maxPages}")
@@ -1517,8 +1520,8 @@ class openATVMain(ATVhelper):
 
 	def keyExit(self):
 		if self.currMode == "menu":
-			if exists(self.AVATARPATH):
-				rmtree(self.AVATARPATH)
+			if exists(atvglobals.AVATARPATH):
+				rmtree(atvglobals.AVATARPATH)
 			self.close()
 		if self.currMode == "thread":
 			if self.favMenu:
@@ -1613,7 +1616,7 @@ class openATVMain(ATVhelper):
 			threadLink = self.threadLink if self.threadLink else self.threadLinks[self["menu"].getCurrentIndex() - 1]
 			threadid = parse_qs(urlparse(threadLink).query)["t"][0] if "t=" in threadLink else ""
 			if threadid:
-				self.threadLink = fparser.createThreadUrl(threadid, (self.currPage - 1) * self.POSTSPERTHREAD)
+				self.threadLink = fparser.createThreadUrl(threadid, (self.currPage - 1) * atvglobals.POSTSPERTHREAD)
 				callInThread(self.makeThread, self.displayHTMLerror)
 
 	def prevPage(self):
@@ -1625,7 +1628,7 @@ class openATVMain(ATVhelper):
 			threadLink = self.threadLink if self.threadLink else self.threadLinks[self["menu"].getCurrentIndex() - 1]
 			threadid = parse_qs(urlparse(threadLink).query)["t"][0] if "t=" in threadLink else ""
 			if threadid:
-				self.threadLink = fparser.createThreadUrl(threadid, (self.currPage - 1) * self.POSTSPERTHREAD)
+				self.threadLink = fparser.createThreadUrl(threadid, (self.currPage - 1) * atvglobals.POSTSPERTHREAD)
 				callInThread(self.makeThread, self.displayHTMLerror, movetoend=True)
 
 	def gotoPage(self, number):
@@ -1640,18 +1643,18 @@ class openATVMain(ATVhelper):
 			if self.currMode == "thread" and self.threadLink:
 				threadid = parse_qs(urlparse(self.threadLink).query)["t"][0] if "t=" in self.threadLink else ""
 				if threadid:
-					self.threadLink = fparser.createThreadUrl(threadid, (number - 1) * self.POSTSPERTHREAD)
+					self.threadLink = fparser.createThreadUrl(threadid, (number - 1) * atvglobals.POSTSPERTHREAD)
 					callInThread(self.makeThread, self.displayHTMLerror)
 
 	def checkFiles(self):
 		try:
-			if not exists(self.AVATARPATH):
-				makedirs(self.AVATARPATH)
+			if not exists(atvglobals.AVATARPATH):
+				makedirs(atvglobals.AVATARPATH)
 		except OSError as errMsg:
 			self.session.open(MessageBox, f"Dateipfad für Avatare konnte nicht neu angelegt werden:\n'{errMsg}'", type=MessageBox.TYPE_INFO, timeout=2, close_on_any_key=True)
-		if not exists(self.FAVORITEN):
+		if not exists(atvglobals.FAVORITEN):
 			try:
-				with open(self.FAVORITEN, "w"):
+				with open(atvglobals.FAVORITEN, "w"):
 					pass  # write empty file
 			except OSError as errMsg:
 				self.session.open(MessageBox, f"Favoriten konnten nicht neu angelegt werden:\n'{errMsg}'", type=MessageBox.TYPE_INFO, timeout=2, close_on_any_key=True)
